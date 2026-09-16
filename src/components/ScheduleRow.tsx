@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Checkbox } from "./Checkbox";
 import { CategoryBadge } from "./CategoryBadge";
 import type { ScheduledTask } from "@/types";
@@ -40,6 +40,30 @@ export function ScheduleRow({ task, onToggleTask, onToggleSubtask, onEdit, onDel
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const hasSubtasks = task.subtasks.length > 0;
 
+  // Коли задачу позначено виконаною — згортаємо список підзадач,
+  // щоб рядок одразу виглядав завершеним і не займав місце деталями,
+  // які вже неактуальні. Користувач все ще може розгорнути вручну.
+  useEffect(() => {
+    if (task.done) setExpanded(false);
+  }, [task.done]);
+
+  // Коли основна задача виконана — підзадачі показуємо позначеними теж
+  // (лише візуально, поточний стан кожної підзадачі не перезаписуємо,
+  // тож якщо зняти позначку з основної задачі — підзадачі повернуться
+  // до того, як були насправді).
+  const effectiveSubtaskDone = (done: boolean) => task.done || done;
+  const doneSubtasksCount = task.done ? task.subtasks.length : task.subtasks.filter((s) => s.done).length;
+
+  // Спільний клас для тексту в межах рядка виконаної задачі — щоб
+  // перекреслювався не тільки заголовок, а весь рядок (час, підзадачі/деталі).
+  // Окремий токен `done` (а не загальний `muted`) — щоб стан "завершено"
+  // був явним семантичним кольором, а не побічним ефектом приглушеного тексту.
+  const doneText = task.done ? "text-done-fg line-through" : "";
+
+  // Смужка категорії гасне до нейтрального кольору, коли задача виконана —
+  // інакше вона лишається яскравою на фоні приглушеного рядка.
+  const railClass = task.done ? "bg-line" : RAIL_COLORS[task.category];
+
   const editDeleteButtons = (
     <>
       <button
@@ -76,10 +100,10 @@ export function ScheduleRow({ task, onToggleTask, onToggleSubtask, onEdit, onDel
     <>
       <button
         onClick={() => setExpanded((e) => !e)}
-        className="flex items-center gap-1 text-xs font-medium text-muted"
+        className={`flex items-center gap-1 text-xs font-medium ${task.done ? doneText : "text-muted"}`}
         aria-label={expanded ? "Згорнути підзадачі" : "Розгорнути підзадачі"}
       >
-        Підзадачі ({task.subtasks.filter((s) => s.done).length}/{task.subtasks.length})
+        Підзадачі ({doneSubtasksCount}/{task.subtasks.length})
         <svg
           viewBox="0 0 16 16"
           className={`h-4 w-4 transition-transform ${expanded ? "rotate-180" : ""}`}
@@ -90,46 +114,55 @@ export function ScheduleRow({ task, onToggleTask, onToggleSubtask, onEdit, onDel
       </button>
       {expanded && (
         <ul className="mt-2 space-y-2">
-          {task.subtasks.map((s) => (
-            <li key={s.id} className="flex items-center gap-2.5">
-              <Checkbox size="sm" checked={s.done} onChange={(v) => onToggleSubtask(s.id, v)} />
-              <span className={`text-sm ${s.done ? "text-muted line-through" : "text-ink/90"}`}>{s.title}</span>
-            </li>
-          ))}
+          {task.subtasks.map((s) => {
+            const checked = effectiveSubtaskDone(s.done);
+            return (
+              <li key={s.id} className="flex items-center gap-2.5">
+                <Checkbox
+                  size="sm"
+                  checked={checked}
+                  onChange={(v) => {
+                    onToggleSubtask(s.id, v);
+                    // Якщо знімаємо галочку з підзадачі, поки основна задача
+                    // позначена виконаною — знімаємо позначку і з неї, бо
+                    // "виконано" вже не відповідає дійсності.
+                    if (task.done && !v) onToggleTask(task.id, false);
+                  }}
+                />
+                <span className={`text-sm transition-colors ${checked ? "text-done-fg line-through" : "text-ink/90"}`}>{s.title}</span>
+              </li>
+            );
+          })}
         </ul>
       )}
     </>
   ) : task.details ? (
-    <p className="text-sm text-muted">{task.details}</p>
+    <p className={`text-sm ${task.done ? doneText : "text-muted"}`}>{task.details}</p>
   ) : null;
 
   return (
     <>
       {/* Мобільна картка */}
       <div
-        className={`border-b border-line p-4 sm:hidden ${task.done ? "bg-canvas/70" : ROW_TINTS[task.category]}`}
+        className={`border-b border-line p-4 transition-colors sm:hidden ${task.done ? "bg-done-bg" : ROW_TINTS[task.category]}`}
       >
         <div className="flex items-start gap-3">
           <Checkbox checked={task.done} onChange={(v) => onToggleTask(task.id, v)} />
           <div className="min-w-0 flex-1">
             {/* Назва зліва, дії — вгорі справа */}
             <div className="flex items-start justify-between gap-2">
-              <span
-                className={`min-w-0 break-words pt-0.5 text-sm font-semibold ${
-                  task.done ? "text-muted line-through" : "text-ink"
-                }`}
-              >
+              <span className={`min-w-0 break-words pt-0.5 text-sm font-semibold transition-colors ${task.done ? doneText : "text-ink"}`}>
                 {task.title}
               </span>
               <div className="-mr-1.5 -mt-1 flex shrink-0 items-center gap-0.5">{editDeleteButtons}</div>
             </div>
 
             {/* Час і категорія — рядком нижче */}
-            <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
-              <span className="text-xs font-medium text-muted">
+            <div className={`mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 ${task.done ? "opacity-70" : ""}`}>
+              <span className={`text-xs font-medium transition-colors ${task.done ? doneText : "text-muted"}`}>
                 {task.startTime}–{task.endTime}
               </span>
-              <CategoryBadge category={task.category} />
+              <CategoryBadge category={task.category} muted={task.done} />
             </div>
 
             {subtasksOrDetails && <div className="mt-2.5">{subtasksOrDetails}</div>}
@@ -139,24 +172,22 @@ export function ScheduleRow({ task, onToggleTask, onToggleSubtask, onEdit, onDel
 
       {/* Десктопна таблиця */}
       <div
-        className={`group hidden border-b border-line sm:grid sm:grid-cols-[66px_140px_1fr_1.4fr_72px] ${
-          task.done ? "bg-canvas/70" : ROW_TINTS[task.category]
+        className={`group hidden border-b border-line transition-colors sm:grid sm:grid-cols-[66px_140px_1fr_1.4fr_72px] ${
+          task.done ? "bg-done-bg" : ROW_TINTS[task.category]
         }`}
       >
         <div className="flex items-center justify-center px-3 py-4">
           <Checkbox checked={task.done} onChange={(v) => onToggleTask(task.id, v)} />
         </div>
 
-        <div className="relative flex items-center py-4 pl-4 pr-3 text-sm text-ink">
-          <span className={`absolute left-0 top-2 bottom-2 w-[3px] rounded-full ${RAIL_COLORS[task.category]}`} />
+        <div className={`relative flex items-center py-4 pl-4 pr-3 text-sm transition-colors ${task.done ? doneText : "text-ink"}`}>
+          <span className={`absolute left-0 top-2 bottom-2 w-[3px] rounded-full transition-colors ${railClass}`} />
           {task.startTime}–{task.endTime}
         </div>
 
-        <div className="flex flex-col justify-center gap-1.5 py-4 pr-4">
-          <span className={`text-sm font-semibold ${task.done ? "text-muted line-through" : "text-ink"}`}>
-            {task.title}
-          </span>
-          <CategoryBadge category={task.category} />
+        <div className={`flex flex-col justify-center gap-1.5 py-4 pr-4 ${task.done ? "opacity-70" : ""}`}>
+          <span className={`text-sm font-semibold transition-colors ${task.done ? doneText : "text-ink"}`}>{task.title}</span>
+          <CategoryBadge category={task.category} muted={task.done} />
         </div>
 
         <div className="py-4 pr-6">{subtasksOrDetails}</div>

@@ -12,10 +12,21 @@ const STYLES: Record<Category, string> = {
   other: "text-category-other-fg bg-category-other-bg",
 };
 
-export function CategoryBadge({ category }: { category: Category }) {
+// Нейтральний вигляд бейджа для виконаних задач — категорія все ще
+// читається з тексту, але більше не тягне на себе увагу кольором.
+const MUTED_STYLE = "text-done-fg bg-done-bg line-through";
+
+interface CategoryBadgeProps {
+  category: Category;
+  muted?: boolean;
+}
+
+export function CategoryBadge({ category, muted = false }: CategoryBadgeProps) {
   return (
     <span
-      className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${STYLES[category]}`}
+      className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium transition-colors ${
+        muted ? MUTED_STYLE : STYLES[category]
+      }`}
     >
       {CATEGORY_LABELS[category]}
     </span>

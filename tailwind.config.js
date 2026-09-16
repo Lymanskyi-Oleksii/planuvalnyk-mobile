@@ -33,6 +33,11 @@ export default {
           errands: { fg: "#0891B2", bg: "#E3F6FA" },
           other: { fg: "#64748B", bg: "#EEF1F4" },
         },
+
+        done: {
+          fg: "#5D5D73",
+          bg: "#DFE1E6", // помітно сірий, а не білуватий відтінок
+        },
       },
       borderRadius: {
         xl2: "14px",
