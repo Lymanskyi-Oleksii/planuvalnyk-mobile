@@ -25,13 +25,16 @@ export interface PlannedReminder {
   key: string; // стабільний ключ: з нього рахується числовий id сповіщення
   kind: ReminderKind;
   when: Date;
-  title: string;
+  title: string; // починається з emoji
   body: string;
-  largeBody?: string; // розгорнутий текст (Android)
-  lines?: string[]; // список рядків для підсумків дня (Android)
+  largeBody?: string; // розгорнутий текст: картка на комп'ютері, сповіщення iOS
+  lines?: string[]; // список рядків для підсумків дня
+  emoji: string; // для кружка у власному макеті Android
+  details: string; // деталі під заголовком у розгорнутому макеті Android
   color: string; // колір акценту сповіщення
   silent: boolean; // без звуку: тихі години або режим «Без звуку»
   date: string; // день, якого стосується нагадування
+  taskId?: string; // задача, яку позначає кнопка «Виконано»; у підсумків дня немає
 }
 
 // Ті самі кольори, що й у бейджів категорій (tailwind.config.js → category.*.fg)
@@ -116,7 +119,7 @@ export function buildPlan(tasks: PlanTask[], s: ReminderSettings, now: Date): Pl
     const color = CATEGORY_COLORS[t.category];
     const range = `${t.startTime}–${t.endTime}`;
     const details = (t.details ?? "").trim();
-    // largeBody задаємо завжди: без нього розгорнуте сповіщення на Android порожнє
+    // largeBody задаємо завжди: без нього картка на комп'ютері й сповіщення iOS неповні
     const withDetails = (line: string) => (details ? `${line}\n${details}` : line);
 
     const preBody = lead > 0 ? `Через ${durationLabel(lead)} · ${range}` : `Починається зараз · ${range}`;
@@ -127,8 +130,11 @@ export function buildPlan(tasks: PlanTask[], s: ReminderSettings, now: Date): Pl
       title: `${emoji} ${t.title}`,
       body: preBody,
       largeBody: withDetails(preBody),
+      emoji,
+      details,
       color,
       date: t.date,
+      taskId: t.id,
     });
 
     if (s.atStart && lead > 0) {
@@ -140,36 +146,47 @@ export function buildPlan(tasks: PlanTask[], s: ReminderSettings, now: Date): Pl
         title: `${emoji} ${t.title}`,
         body: startBody,
         largeBody: withDetails(startBody),
+        emoji,
+        details,
         color,
         date: t.date,
+        taskId: t.id,
       });
     }
 
     if (t.category === "sport") {
       if (s.snack && Number(t.startTime.slice(0, 2)) >= SNACK_FROM_HOUR) {
         const snackBody = `${t.title} о ${t.startTime}. Яблуко або нежирний йогурт.`;
+        const snackDetails = "Нічого важкого за 45–60 хв до заняття.";
         push({
           key: `${t.id}:snack`,
           kind: "snack",
           when: at(t.date, t.startTime, -SNACK_BEFORE_MIN),
           title: "🍎 Перекус перед тренуванням",
           body: snackBody,
-          largeBody: `${snackBody}\nНічого важкого за 45–60 хв до заняття.`,
+          largeBody: `${snackBody}\n${snackDetails}`,
+          emoji: "🍎",
+          details: snackDetails,
           color: CATEGORY_COLORS.food,
           date: t.date,
+          taskId: t.id,
         });
       }
       if (s.afterWorkoutPulse) {
+        const pulseBody = "Через 3 хв після заняття пульс має бути нижче 100.";
+        const pulseDetails = "Відмітьте виконане в застосунку.";
         push({
           key: `${t.id}:post`,
           kind: "pulse",
           when: at(t.date, t.endTime, POST_MIN),
           title: "❤️ Виміряйте пульс",
-          body: "Через 3 хв після заняття пульс має бути нижче 100.",
-          largeBody:
-            "Через 3 хв після заняття пульс має бути нижче 100.\nВідмітьте виконане в застосунку.",
+          body: pulseBody,
+          largeBody: `${pulseBody}\n${pulseDetails}`,
+          emoji: "❤️",
+          details: pulseDetails,
           color: CATEGORY_COLORS.health,
           date: t.date,
+          taskId: t.id,
         });
       }
     }
@@ -192,25 +209,31 @@ export function buildPlan(tasks: PlanTask[], s: ReminderSettings, now: Date): Pl
 
       if (s.morningDigest && ahead.length > 0) {
         const first = ahead[0];
+        const lines = digestLines(ahead);
         push({
           key: `${date}:morning`,
           kind: "morning",
           when: at(date, s.morningTime),
           title: `☀️ План на сьогодні: ${pluralTasks(ahead.length)}`,
           body: `Перша о ${first.startTime}: ${first.title}`,
-          lines: digestLines(ahead),
+          lines,
+          emoji: "☀️",
+          details: lines.join("\n"),
           color: ACCENT,
           date,
         });
       }
       if (s.eveningReview && due.length > 0) {
+        const lines = digestLines(due);
         push({
           key: `${date}:evening`,
           kind: "evening",
           when: at(date, s.eveningTime),
           title: `🌙 Невиконаного за день: ${pluralTasks(due.length)}`,
           body: due.map((t) => t.title).join(", "),
-          lines: digestLines(due),
+          lines,
+          emoji: "🌙",
+          details: lines.join("\n"),
           color: ACCENT,
           date,
         });

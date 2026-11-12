@@ -8,6 +8,7 @@ import {
   requestPermission,
   sendNotification,
 } from "@tauri-apps/plugin-notification";
+import { invoke } from "@tauri-apps/api/core";
 import { platform } from "@tauri-apps/plugin-os";
 import { supabase } from "./supabaseClient";
 import { requireUserId } from "./session";
@@ -22,8 +23,10 @@ import { toast } from "./toast";
 //
 // Що саме нагадувати, вирішує план (lib/reminderPlan.ts) за налаштуваннями
 // й полями самої задачі. Цей файл лише доставляє план:
-//   • на телефоні — системними сповіщеннями;
+//   • на Android — власним плагіном reminders (сповіщення з нашим макетом);
+//   • на iOS — системними сповіщеннями плагіна notification;
 //   • на комп'ютері — картками всередині застосунку, поки він відкритий.
+// Дозвіл на сповіщення й канали Android — через плагін notification.
 
 const DAYS_AHEAD = 7;
 const MAX_NOTIFICATIONS = 60; // iOS тримає не більше 64 запланованих
@@ -96,13 +99,21 @@ function notificationId(key: string): number {
   return (h >>> 0) & 0x7fffffff;
 }
 
-async function isMobile(): Promise<boolean> {
+function currentPlatform(): string | null {
   try {
-    const p = platform();
-    return p === "android" || p === "ios";
+    return platform();
   } catch {
-    return false; // не Tauri (наприклад, відкрито у звичайному браузері)
+    return null; // не Tauri (наприклад, відкрито у звичайному браузері)
   }
+}
+
+async function isMobile(): Promise<boolean> {
+  const p = currentPlatform();
+  return p === "android" || p === "ios";
+}
+
+function isAndroid(): boolean {
+  return currentPlatform() === "android";
 }
 
 /** true — дозволено, false — заборонено, null — на цьому пристрої сповіщення недоступні. */
@@ -157,6 +168,52 @@ async function ensureChannels(): Promise<void> {
   channelsReady = true;
 }
 
+// Одне нагадування для плагіна reminders (поля — як у Reminder з ReminderAlarms.kt)
+interface NativeReminder {
+  id: number;
+  whenMs: number;
+  title: string;
+  body: string;
+  details: string;
+  color: string;
+  emoji: string;
+  silent: boolean;
+  channelId: string;
+  date: string;
+  taskId: string;
+}
+
+function toNative(p: PlannedReminder, mode: AlertMode, when: Date = p.when): NativeReminder {
+  // Емодзі показує кружок макета, тож із заголовка його прибираємо
+  const title = p.title.startsWith(p.emoji) ? p.title.slice(p.emoji.length).trimStart() : p.title;
+  return {
+    id: notificationId(p.key),
+    whenMs: when.getTime(),
+    title,
+    body: p.body,
+    details: p.details,
+    color: p.color,
+    emoji: p.emoji,
+    silent: p.silent,
+    channelId: p.silent ? CHANNEL_SILENT : CHANNEL_BY_MODE[mode],
+    date: p.date,
+    taskId: p.taskId ?? "",
+  };
+}
+
+/** Android: увесь план одним викликом; він повністю замінює попередній. */
+async function scheduleAndroid(reminders: NativeReminder[]): Promise<void> {
+  // Прибираємо нагадування, які попередня версія ставила через плагін notification
+  await cancelAll().catch(() => {});
+  await invoke("plugin:reminders|schedule", { reminders });
+}
+
+async function cancelAndroid(): Promise<void> {
+  await cancelAll().catch(() => {});
+  await invoke("plugin:reminders|cancel_all");
+}
+
+// iOS: кожне нагадування окремим системним сповіщенням
 function deliver(p: PlannedReminder, mode: AlertMode, when: Date = p.when): void {
   sendNotification({
     id: notificationId(p.key),
@@ -183,6 +240,8 @@ const TEST_REMINDER: PlannedReminder = {
   title: "🏃 Тренування",
   body: "Через 15 хв · 18:00–19:00",
   largeBody: "Через 15 хв · 18:00–19:00\nТак виглядатимуть нагадування про ваші задачі.",
+  emoji: "🏃",
+  details: "Так виглядатимуть нагадування про ваші задачі.",
   color: "#F97316",
   silent: false,
   date: "",
@@ -198,11 +257,19 @@ export async function sendTestNotification(): Promise<TestResult> {
     if (!(await requestNotificationPermission())) return "denied";
     await ensureChannels();
     const settings = loadSettings();
-    deliver(
-      { ...TEST_REMINDER, silent: settings.alertMode === "silent" },
-      settings.alertMode,
-      new Date(Date.now() + 5_000)
-    );
+    const test = { ...TEST_REMINDER, silent: settings.alertMode === "silent" };
+    const when = new Date(Date.now() + 5_000);
+    if (isAndroid()) {
+      // План на Android замінюється цілком, тож тест додаємо до чинного плану
+      await enqueue(() =>
+        scheduleAndroid([
+          ...status.plan.map((p) => toNative(p, settings.alertMode)),
+          toNative(test, settings.alertMode, when),
+        ])
+      );
+    } else {
+      deliver(test, settings.alertMode, when);
+    }
     return "scheduled";
   } catch (err) {
     // eslint-disable-next-line no-console
@@ -284,7 +351,9 @@ async function doReschedule(): Promise<void> {
 
     if (!settings.enabled) {
       armInApp([]);
-      if (mobile) await cancelAll(); // головний вимикач: прибираємо всі заплановані
+      // головний вимикач: прибираємо всі заплановані
+      if (isAndroid()) await cancelAndroid();
+      else if (mobile) await cancelAll();
       publish("off", []);
       return;
     }
@@ -307,10 +376,14 @@ async function doReschedule(): Promise<void> {
 
     await ensureChannels();
 
-    // Спершу прибираємо старі, потім ставимо актуальні: так видалені
-    // або перенесені задачі не залишають «привидів».
-    await cancelAll();
-    for (const p of plan) deliver(p, settings.alertMode);
+    if (isAndroid()) {
+      await scheduleAndroid(plan.map((p) => toNative(p, settings.alertMode)));
+    } else {
+      // Спершу прибираємо старі, потім ставимо актуальні: так видалені
+      // або перенесені задачі не залишають «привидів».
+      await cancelAll();
+      for (const p of plan) deliver(p, settings.alertMode);
+    }
 
     publish("scheduled", plan);
   } catch (err) {
@@ -325,7 +398,12 @@ async function doReschedule(): Promise<void> {
 // одне одного і не створили дублікатів.
 let queue: Promise<void> = Promise.resolve();
 
+function enqueue(job: () => Promise<void>): Promise<void> {
+  const next = queue.then(job, job);
+  queue = next.catch(() => {}); // помилка одного завдання не зупиняє чергу
+  return next;
+}
+
 export function rescheduleReminders(): Promise<void> {
-  queue = queue.then(doReschedule, doReschedule);
-  return queue;
+  return enqueue(doReschedule);
 }

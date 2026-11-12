@@ -62,11 +62,13 @@ Android потрібен свій Kotlin-код. iOS і комп'ютер лиш
 `planner-v2-silent`), брати `channelId` з нагадування.
 
 ### Етап 4. Підключення з JS
-- [ ] `src/lib/reminders.ts`: на Android замість `sendNotification` викликати
+- [x] `src/lib/reminders.ts`: на Android замість `sendNotification` викликати
       `invoke("plugin:reminders|schedule", { reminders })` один раз на весь план,
       замість `cancelAll()` — `invoke("plugin:reminders|cancel_all")`.
-- [ ] `sendTestNotification` перевести на той самий шлях.
-- [ ] Дозвіл на сповіщення й створення каналів лишити через плагін Tauri.
+      Поля `emoji`, `details`, `taskId` додано в план (`reminderPlan.ts`).
+- [x] `sendTestNotification` перевести на той самий шлях
+      (тест додається до чинного плану, бо `schedule` замінює план цілком).
+- [x] Дозвіл на сповіщення й створення каналів лишити через плагін Tauri.
 
 ### Етап 5. Кнопки
 - [ ] «Відкласти на 10 хв»: `ReminderActionReceiver.kt` закриває сповіщення і ставить
