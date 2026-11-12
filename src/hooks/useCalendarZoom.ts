@@ -3,8 +3,8 @@ import { clampHourHeight, minutesToTop, topToMinutes } from "@/lib/calendarLayou
 import { saveView } from "@/lib/settings";
 
 /**
- * Масштаб календаря (висота години): щипок двома пальцями на телефоні, Ctrl + колесо
- * на комп'ютері. Час під пальцями чи під курсором лишається на тому ж місці екрана.
+ * Масштаб календаря (висота години) щипком двома пальцями. Час під пальцями лишається
+ * на тому ж місці екрана.
  * Під час щипка сітка не прокручується (overflow: hidden), а WebView не масштабує сторінку
  * (touch-action: pan-y на контейнері + preventDefault). Значення зберігається в
  * planner.view.v1 після жесту.
@@ -96,35 +96,15 @@ export function useCalendarZoom(
       if (pinch && e.touches.length < 2) endPinch();
     }
 
-    // ── Ctrl + колесо (і щипок на тачпаді — WebView2 шле його як Ctrl + колесо) ──
-    let wheelTimer = 0;
-    function onWheel(e: WheelEvent) {
-      if (!e.ctrlKey) return;
-      e.preventDefault(); // інакше масштабується вся сторінка
-      const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY; // рядки → px
-      zoomTo(hhRef.current * Math.exp(-dy * 0.0015), e.clientY);
-      window.clearTimeout(wheelTimer);
-      wheelTimer = window.setTimeout(() => {
-        wheelTimer = 0;
-        commit();
-      }, 300);
-    }
-
     el.addEventListener("touchstart", onTouchStart, { passive: false });
     el.addEventListener("touchmove", onTouchMove, { passive: false });
     el.addEventListener("touchend", onTouchEnd);
     el.addEventListener("touchcancel", onTouchEnd);
-    el.addEventListener("wheel", onWheel, { passive: false });
     return () => {
       el.removeEventListener("touchstart", onTouchStart);
       el.removeEventListener("touchmove", onTouchMove);
       el.removeEventListener("touchend", onTouchEnd);
       el.removeEventListener("touchcancel", onTouchEnd);
-      el.removeEventListener("wheel", onWheel);
-      if (wheelTimer) {
-        window.clearTimeout(wheelTimer);
-        commit(); // календар закрили одразу після Ctrl + колеса — не губити масштаб
-      }
       if (pinch) endPinch();
     };
   }, [scrollRef, headerRef]);
