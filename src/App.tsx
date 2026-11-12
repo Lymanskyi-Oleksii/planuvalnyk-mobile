@@ -308,12 +308,25 @@ function PlannerApp() {
               />
             </div>
             <div className={onlyOnTab("tasks")}>
+              {/* bump: задачі дня входять у ранковий план нагадувань */}
               <DailyTasksPanel
                 tasks={dailyTasks}
-                onToggle={toggleDailyTask}
-                onAdd={addDailyTask}
-                onEdit={editDailyTask}
-                onDelete={deleteDailyTask}
+                onToggle={async (id, done) => {
+                  await toggleDailyTask(id, done);
+                  bump();
+                }}
+                onAdd={async (title) => {
+                  await addDailyTask(title);
+                  bump();
+                }}
+                onEdit={async (id, title) => {
+                  await editDailyTask(id, title);
+                  bump();
+                }}
+                onDelete={async (id) => {
+                  await deleteDailyTask(id);
+                  bump();
+                }}
               />
             </div>
           </div>

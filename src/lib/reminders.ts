@@ -15,7 +15,13 @@ import { supabase, url as supabaseUrl, anonKey as supabaseAnonKey } from "./supa
 import { requireUserId } from "./session";
 import { addDays, toISODate } from "./date";
 import { loadSettings, type AlertMode } from "./settings";
-import { buildPlan, toCategory, type PlanTask, type PlannedReminder } from "./reminderPlan";
+import {
+  buildPlan,
+  toCategory,
+  type PlanDailyTask,
+  type PlanTask,
+  type PlannedReminder,
+} from "./reminderPlan";
 import { toast } from "./toast";
 
 // Нагадування — локальні сповіщення телефону, заплановані наперед на найближчі
@@ -380,6 +386,21 @@ async function fetchTasks(userId: string, from: string, to: string): Promise<Pla
   }));
 }
 
+// Невиконані задачі дня без часу — для ранкового плану
+async function fetchDailyTasks(userId: string, from: string, to: string): Promise<PlanDailyTask[]> {
+  const { data, error } = await supabase
+    .from("daily_tasks")
+    .select("date, title, done")
+    .eq("user_id", userId)
+    .eq("done", false)
+    .gte("date", from)
+    .lte("date", to)
+    .order("date", { ascending: true })
+    .order("sort_order", { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((r) => ({ date: r.date as string, title: r.title as string, done: r.done as boolean }));
+}
+
 async function doReschedule(): Promise<void> {
   try {
     const mobile = await isMobile();
@@ -396,8 +417,12 @@ async function doReschedule(): Promise<void> {
 
     const userId = requireUserId();
     const today = toISODate(new Date());
-    const tasks = await fetchTasks(userId, today, addDays(today, DAYS_AHEAD));
-    const plan = buildPlan(tasks, settings, new Date()).slice(0, MAX_NOTIFICATIONS);
+    const until = addDays(today, DAYS_AHEAD);
+    const [tasks, daily] = await Promise.all([
+      fetchTasks(userId, today, until),
+      settings.morningDigest ? fetchDailyTasks(userId, today, until) : Promise.resolve([]),
+    ]);
+    const plan = buildPlan(tasks, settings, new Date(), daily).slice(0, MAX_NOTIFICATIONS);
 
     if (!mobile) {
       armInApp(plan);

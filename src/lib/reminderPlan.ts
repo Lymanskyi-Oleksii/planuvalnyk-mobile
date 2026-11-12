@@ -21,6 +21,13 @@ export interface PlanTask {
   remindBeforeMin: number | null;
 }
 
+// Задача дня без часу (таблиця daily_tasks) — лише для ранкового плану
+export interface PlanDailyTask {
+  date: string; // YYYY-MM-DD
+  title: string;
+  done: boolean;
+}
+
 export interface PlannedReminder {
   key: string; // стабільний ключ: з нього рахується числовий id сповіщення
   kind: ReminderKind;
@@ -88,9 +95,11 @@ export function pluralTasks(n: number): string {
   return `${n} задач`;
 }
 
-function digestLines(tasks: PlanTask[]): string[] {
-  const lines = tasks.slice(0, DIGEST_LINES).map((t) => `${t.startTime}  ${t.title}`);
-  if (tasks.length > DIGEST_LINES) lines.push(`і ще ${tasks.length - DIGEST_LINES}`);
+// Спершу задачі з часом, потім задачі дня без часу
+function digestLines(tasks: PlanTask[], daily: PlanDailyTask[] = []): string[] {
+  const all = [...tasks.map((t) => `${t.startTime}  ${t.title}`), ...daily.map((t) => `•  ${t.title}`)];
+  const lines = all.slice(0, DIGEST_LINES);
+  if (all.length > DIGEST_LINES) lines.push(`і ще ${all.length - DIGEST_LINES}`);
   return lines;
 }
 
@@ -99,7 +108,12 @@ export function wantsReminder(task: Pick<PlanTask, "remind" | "category">, s: Re
   return task.remind ?? s.categories.includes(task.category);
 }
 
-export function buildPlan(tasks: PlanTask[], s: ReminderSettings, now: Date): PlannedReminder[] {
+export function buildPlan(
+  tasks: PlanTask[],
+  s: ReminderSettings,
+  now: Date,
+  dailyTasks: PlanDailyTask[] = []
+): PlannedReminder[] {
   if (!s.enabled) return [];
 
   const plan: PlannedReminder[] = [];
@@ -202,20 +216,34 @@ export function buildPlan(tasks: PlanTask[], s: ReminderSettings, now: Date): Pl
       else byDate.set(t.date, [t]);
     }
 
-    for (const [date, list] of byDate) {
+    // Невиконані задачі дня без часу — лише в ранковому плані
+    const dailyByDate = new Map<string, PlanDailyTask[]>();
+    for (const t of dailyTasks) {
+      if (t.done) continue;
+      const list = dailyByDate.get(t.date);
+      if (list) list.push(t);
+      else dailyByDate.set(t.date, [t]);
+    }
+    const dates = new Set([...byDate.keys(), ...(s.morningDigest ? dailyByDate.keys() : [])]);
+
+    for (const date of dates) {
+      const list = byDate.get(date) ?? [];
+      const daily = dailyByDate.get(date) ?? [];
       // Вранці показуємо те, що ще попереду; ввечері — те, що вже мало початися.
       const ahead = list.filter((t) => t.endTime > s.morningTime);
       const due = list.filter((t) => t.startTime < s.eveningTime);
 
-      if (s.morningDigest && ahead.length > 0) {
+      if (s.morningDigest && ahead.length + daily.length > 0) {
         const first = ahead[0];
-        const lines = digestLines(ahead);
+        const lines = digestLines(ahead, daily);
         push({
           key: `${date}:morning`,
           kind: "morning",
           when: at(date, s.morningTime),
-          title: `☀️ План на сьогодні: ${pluralTasks(ahead.length)}`,
-          body: `Перша о ${first.startTime}: ${first.title}`,
+          title: `☀️ План на сьогодні: ${pluralTasks(ahead.length + daily.length)}`,
+          body: first
+            ? `Перша о ${first.startTime}: ${first.title}`
+            : `Задачі дня: ${daily.map((t) => t.title).join(", ")}`,
           lines,
           emoji: "☀️",
           details: lines.join("\n"),
