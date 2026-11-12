@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { formatMinutes, useCalendarDrag, type DropTarget } from "@/hooks/useCalendarDrag";
 import { useCalendarZoom } from "@/hooks/useCalendarZoom";
-import { useRangeDailyCounts } from "@/hooks/useRangeDailyCounts";
 import { useRangeTasks } from "@/hooks/useRangeTasks";
 import { blockRect, dayHeight, initialScrollTop, minutesToTop, overlapLanes, timeToMinutes, topToMinutes } from "@/lib/calendarLayout";
 import { rangeDates } from "@/lib/calendarRange";
@@ -33,8 +32,6 @@ interface CalendarViewProps {
   onGoToday: () => void;
   /** Тап по числу в шапці: зробити день активним і показати лише його. */
   onOpenDay: (date: string) => void;
-  /** Тап по мітці «N задач»: відкрити цей день на вкладці «Задачі». */
-  onOpenDailyTasks: (date: string) => void;
   /** Чи можна змінювати задачі (без мережі — ні; сам показує картку-помилку). */
   canEdit: () => boolean;
   /** Перетягування: новий день і час. true — збережено. */
@@ -58,15 +55,6 @@ function withMoved(tasks: Record<string, ScheduledTask[]>, moved: MovedTask | nu
     { ...task, date: moved.date, startTime: moved.startTime, endTime: moved.endTime },
   ];
   return out;
-}
-
-/** «1 задача», «3 задачі», «5 задач», «21 задача». */
-function tasksLabel(n: number): string {
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  if (mod10 === 1 && mod100 !== 11) return `${n} задача`;
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${n} задачі`;
-  return `${n} задач`;
 }
 
 const RANGES: [CalendarRange, string][] = [
@@ -166,13 +154,11 @@ export function CalendarView({
   onRangeChange,
   onGoToday,
   onOpenDay,
-  onOpenDailyTasks,
   canEdit,
   onMoveTask,
 }: CalendarViewProps) {
   const dates = rangeDates(date, range);
   const { tasks: loadedTasks, ready } = useRangeTasks(dates, refreshKey);
-  const dailyCounts = useRangeDailyCounts(dates, refreshKey);
   const scrollRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
   const { hourHeight, hourHeightRef } = useCalendarZoom(scrollRef, headerRef, savedHourHeight);
@@ -332,38 +318,24 @@ export function CalendarView({
             {dates.map((d) => {
               const today = isToday(d);
               return (
-                <div key={d} className="flex min-w-0 flex-col items-center border-l border-line pb-1 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => onOpenDay(d)}
-                    aria-label={`Відкрити день ${dayOfMonth(d)}`}
-                    className="flex flex-col items-center gap-0.5"
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => onOpenDay(d)}
+                  aria-label={`Відкрити день ${dayOfMonth(d)}`}
+                  className="flex flex-col items-center gap-0.5 border-l border-line py-2"
+                >
+                  <span className={`text-[11px] font-medium uppercase ${today ? "text-accent" : "text-muted"}`}>
+                    {WEEKDAY_SHORT[(parseISO(d).getDay() + 6) % 7]}
+                  </span>
+                  <span
+                    className={`flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold ${
+                      today ? "bg-accent text-white" : "text-ink active:bg-canvas"
+                    }`}
                   >
-                    <span className={`text-[11px] font-medium uppercase ${today ? "text-accent" : "text-muted"}`}>
-                      {WEEKDAY_SHORT[(parseISO(d).getDay() + 6) % 7]}
-                    </span>
-                    <span
-                      className={`flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold ${
-                        today ? "bg-accent text-white" : "text-ink active:bg-canvas"
-                      }`}
-                    >
-                      {dayOfMonth(d)}
-                    </span>
-                  </button>
-                  {/* Місце під мітку є завжди: шапка не змінює висоту, коли мітки прочитано */}
-                  <div className="mt-0.5 flex h-4 max-w-full items-center">
-                    {(dailyCounts[d] ?? 0) > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => onOpenDailyTasks(d)}
-                        aria-label={`${tasksLabel(dailyCounts[d])} без часу`}
-                        className="max-w-full truncate rounded-full bg-accent-soft px-1.5 text-[10px] font-medium leading-4 text-accent"
-                      >
-                        {range === 7 ? dailyCounts[d] : tasksLabel(dailyCounts[d])}
-                      </button>
-                    )}
-                  </div>
-                </div>
+                    {dayOfMonth(d)}
+                  </span>
+                </button>
               );
             })}
           </div>
