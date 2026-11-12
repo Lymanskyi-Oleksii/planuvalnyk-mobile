@@ -2529,10 +2529,10 @@
           "markdownDescription": "Denies the version command without any pre-configured scope."
         },
         {
-          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-schedule`\n- `allow-cancel-all`\n- `allow-pending-done`\n- `allow-ack-done`\n- `allow-set-auth`",
+          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-schedule`\n- `allow-cancel-all`\n- `allow-pending-done`\n- `allow-ack-done`\n- `allow-set-auth`\n- `allow-take-open-date`",
           "type": "string",
           "const": "reminders:default",
-          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-schedule`\n- `allow-cancel-all`\n- `allow-pending-done`\n- `allow-ack-done`\n- `allow-set-auth`"
+          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-schedule`\n- `allow-cancel-all`\n- `allow-pending-done`\n- `allow-ack-done`\n- `allow-set-auth`\n- `allow-take-open-date`"
         },
         {
           "description": "Enables the ack_done command without any pre-configured scope.",
@@ -2563,6 +2563,12 @@
           "type": "string",
           "const": "reminders:allow-set-auth",
           "markdownDescription": "Enables the set_auth command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the take_open_date command without any pre-configured scope.",
+          "type": "string",
+          "const": "reminders:allow-take-open-date",
+          "markdownDescription": "Enables the take_open_date command without any pre-configured scope."
         },
         {
           "description": "Enables the take_pending_done command without any pre-configured scope.",
@@ -2599,6 +2605,12 @@
           "type": "string",
           "const": "reminders:deny-set-auth",
           "markdownDescription": "Denies the set_auth command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the take_open_date command without any pre-configured scope.",
+          "type": "string",
+          "const": "reminders:deny-take-open-date",
+          "markdownDescription": "Denies the take_open_date command without any pre-configured scope."
         },
         {
           "description": "Denies the take_pending_done command without any pre-configured scope.",

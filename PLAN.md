@@ -112,8 +112,9 @@ Android потрібен свій Kotlin-код. iOS і комп'ютер лиш
 - [x] **Задачі дня без часу в ранковому плані.** `fetchTasks` у `reminders.ts` додатково
       читає невиконані задачі дня (таблицю див. у `supabase/schema.sql`), `buildPlan`
       додає їх у блок `morning`.
-- [ ] **Відкривати потрібний день після натискання на сповіщення.** `MainActivity`
+- [x] **Відкривати потрібний день після натискання на сповіщення.** `MainActivity`
       отримує `extra date`, передає в JS, `App.tsx` викликає `setActiveDate`.
+      (`onCreate`/`onNewIntent` → команда `take_open_date` при старті й поверненні.)
 - [ ] **Темна тема.** Кольори в `tailwind.config.js` перевести на
       `rgb(var(--c-…) / <alpha-value>)`, `darkMode: "class"`, змінні в `src/index.css`,
       поле `theme` у `settings.ts`. Знайти жорстко задані `bg-white`, `bg-red-50`,

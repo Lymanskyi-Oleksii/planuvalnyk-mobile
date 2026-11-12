@@ -249,6 +249,17 @@ export async function syncNativeAuth(session: Session | null): Promise<void> {
   }
 }
 
+/** День (YYYY-MM-DD), який треба відкрити після натискання на сповіщення, або null. */
+export async function takeOpenDate(): Promise<string | null> {
+  if (!isAndroid()) return null;
+  try {
+    const res = await invoke<{ date: string | null }>("plugin:reminders|take_open_date");
+    return res.date && /^\d{4}-\d{2}-\d{2}$/.test(res.date) ? res.date : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Прибирає з черги задачі, які вже позначено в базі. */
 export async function ackDone(taskIds: string[]): Promise<void> {
   if (!isAndroid() || taskIds.length === 0) return;

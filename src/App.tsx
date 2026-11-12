@@ -16,7 +16,13 @@ import { useWeekSummaries } from "./hooks/useWeekSummaries";
 import { addDays, toISODate } from "./lib/date";
 import { startOfWeekISO, weekDates } from "./lib/week";
 import { useHorizontalSwipe } from "./lib/useSwipe";
-import { ackDone, pendingDone, rescheduleReminders, syncNativeAuth } from "./lib/reminders";
+import {
+  ackDone,
+  pendingDone,
+  rescheduleReminders,
+  syncNativeAuth,
+  takeOpenDate,
+} from "./lib/reminders";
 import { onAppResume } from "./lib/appResume";
 import { toggleScheduledTask as setScheduledTaskDone } from "./db/database";
 import { subscribeSettings } from "./lib/settings";
@@ -122,6 +128,18 @@ function PlannerApp() {
   useEffect(() => {
     void rescheduleReminders();
   }, [refreshKey]);
+
+  // Натискання на сповіщення відкриває день, якого воно стосується
+  useEffect(() => {
+    const openFromNotification = async () => {
+      const date = await takeOpenDate();
+      if (!date) return;
+      setActiveDate(date);
+      setActiveTab("day");
+    };
+    void openFromNotification();
+    return onAppResume(() => void openFromNotification());
+  }, []);
 
   // Кнопка «Виконано» в сповіщенні лише ставить задачу в чергу на телефоні.
   // Тут позначаємо її в базі й лише після успіху прибираємо з черги.

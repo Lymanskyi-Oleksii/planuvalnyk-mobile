@@ -8,10 +8,11 @@ import app.tauri.plugin.Invoke
 import app.tauri.plugin.JSObject
 import app.tauri.plugin.Plugin
 import org.json.JSONArray
+import org.json.JSONObject
 
 // Плагін Tauri «reminders»: JS передає весь план нагадувань одним викликом.
-// Виклики з JS: plugin:reminders|schedule, |cancel_all, |pending_done, |ack_done, |set_auth
-// (Tauri перетворює snake_case на назви методів: cancelAll, pendingDone, ackDone, setAuth).
+// Виклики з JS: plugin:reminders|schedule, |cancel_all, |pending_done, |ack_done,
+// |set_auth, |take_open_date (Tauri перетворює snake_case на camelCase-методи).
 @TauriPlugin
 class RemindersPlugin(private val activity: Activity) : Plugin(activity) {
 
@@ -70,6 +71,17 @@ class RemindersPlugin(private val activity: Activity) : Plugin(activity) {
     } catch (e: Exception) {
       invoke.reject("Не вдалося зберегти дані входу: ${e.message}")
     }
+  }
+
+  // День, який треба відкрити після натискання на сповіщення.
+  // Відповідь: { date: string | null }; після виклику скидається.
+  @Command
+  fun takeOpenDate(invoke: Invoke) {
+    val date = MainActivity.pendingOpenDate
+    MainActivity.pendingOpenDate = null
+    val ret = JSObject()
+    ret.put("date", date ?: JSONObject.NULL)
+    invoke.resolve(ret)
   }
 
   // Аргументи: { taskIds: string[] } — задачі, вже позначені в базі.
