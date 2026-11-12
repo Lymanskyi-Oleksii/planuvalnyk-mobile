@@ -3,8 +3,18 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 // Повернення застосунку на передній план.
 // На Android visibilitychange у WebView ненадійний, тому слухаємо ще й подію
 // Tauri «tauri://resumed» (onResume активності; на першому запуску не приходить).
-// Обидві можуть прийти разом — обробник має бути готовий до повторного виклику.
-export function onAppResume(cb: () => void): () => void {
+// Обидві приходять разом (видно в Logcat: подвійне перепланування), тому друга
+// в межах секунди ігнорується.
+const DEDUPE_MS = 1_000;
+
+export function onAppResume(callback: () => void): () => void {
+  let last = 0;
+  const cb = () => {
+    const now = Date.now();
+    if (now - last < DEDUPE_MS) return;
+    last = now;
+    callback();
+  };
   const onVisible = () => {
     if (document.visibilityState === "visible") cb();
   };
