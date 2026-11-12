@@ -380,6 +380,7 @@ function PlannerApp() {
                 range={view.range}
                 refreshKey={refreshKey}
                 jumpToken={calendarJump}
+                hourHeight={view.hourHeight}
               />
             ) : (
               <TodaySchedule

@@ -1,4 +1,5 @@
 import { CATEGORY_LABELS, type Category } from "@/types";
+import { DEFAULT_HOUR_HEIGHT, clampHourHeight } from "./calendarLayout";
 
 // Загальні налаштування нагадувань. Зберігаються на самому пристрої
 // (localStorage): сповіщення належать конкретному телефону.
@@ -172,6 +173,8 @@ export type CalendarRange = 1 | 3 | 7;
 export interface ViewSettings {
   mode: ViewMode;
   range: CalendarRange;
+  /** Масштаб календаря: висота години, px. */
+  hourHeight: number;
 }
 
 export const VIEW_LABELS: Record<ViewMode, string> = {
@@ -179,7 +182,7 @@ export const VIEW_LABELS: Record<ViewMode, string> = {
   calendar: "Календар",
 };
 
-const DEFAULT_VIEW: ViewSettings = { mode: "list", range: 7 };
+const DEFAULT_VIEW: ViewSettings = { mode: "list", range: 7, hourHeight: DEFAULT_HOUR_HEIGHT };
 const VIEW_KEY = "planner.view.v1";
 const viewListeners = new Set<(v: ViewSettings) => void>();
 
@@ -191,6 +194,8 @@ export function loadView(): ViewSettings {
     return {
       mode: p.mode === "calendar" || p.mode === "list" ? p.mode : DEFAULT_VIEW.mode,
       range: p.range === 1 || p.range === 3 || p.range === 7 ? p.range : DEFAULT_VIEW.range,
+      hourHeight:
+        typeof p.hourHeight === "number" ? clampHourHeight(p.hourHeight) : DEFAULT_VIEW.hourHeight,
     };
   } catch {
     return DEFAULT_VIEW;

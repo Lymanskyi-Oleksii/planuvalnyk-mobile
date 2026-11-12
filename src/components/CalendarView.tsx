@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCalendarZoom } from "@/hooks/useCalendarZoom";
 import { useRangeTasks } from "@/hooks/useRangeTasks";
-import { DAY_HEIGHT, HOUR_HEIGHT, initialScrollTop, timeToMinutes } from "@/lib/calendarLayout";
+import { dayHeight, initialScrollTop, timeToMinutes } from "@/lib/calendarLayout";
 import { rangeDates } from "@/lib/calendarRange";
 import { isToday } from "@/lib/date";
 import type { CalendarRange } from "@/lib/settings";
@@ -12,16 +13,20 @@ interface CalendarViewProps {
   refreshKey: number;
   /** Збільшується кнопкою «Сьогодні» — знову перейти до першої задачі. */
   jumpToken: number;
+  /** Збережений масштаб (висота години, px). */
+  hourHeight: number;
 }
 
 const HOURS = Array.from({ length: 24 }, (_, h) => h);
 
 // Погодинна сітка. Шапка днів — sticky всередині того ж контейнера прокрутки, що й сітка:
 // повзунок звужує обидві однаково, тож колонки шапки й сітки збігаються.
-export function CalendarView({ date, range, refreshKey, jumpToken }: CalendarViewProps) {
+export function CalendarView({ date, range, refreshKey, jumpToken, hourHeight: savedHourHeight }: CalendarViewProps) {
   const dates = rangeDates(date, range);
   const { tasks, ready } = useRangeTasks(dates, refreshKey);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
+  const { hourHeight, hourHeightRef } = useCalendarZoom(scrollRef, headerRef, savedHourHeight);
 
   const cols = `44px repeat(${dates.length}, minmax(0, 1fr))`;
 
@@ -46,7 +51,7 @@ export function CalendarView({ date, range, refreshKey, jumpToken }: CalendarVie
     if (!el || !s.pending || !s.ready) return false;
     if (el.clientHeight === 0) return false; // вкладка схована (display: none) — зробимо, коли з'явиться
     const starts = s.dates.flatMap((d) => (s.tasks[d] ?? []).map((t) => timeToMinutes(t.startTime)));
-    el.scrollTop = initialScrollTop(starts);
+    el.scrollTop = initialScrollTop(starts, hourHeightRef.current);
     setDoneSig(s.jumpSig);
     return true;
   }
@@ -71,9 +76,15 @@ export function CalendarView({ date, range, refreshKey, jumpToken }: CalendarVie
 
   return (
     <section className="overflow-hidden rounded-xl2 border border-line bg-panel shadow-card">
-      <div ref={scrollRef} className="h-[65vh] min-h-[320px] overflow-y-auto">
+      {/* pan-y: браузер сам лише прокручує по вертикалі, щипок віддає нам (useCalendarZoom) */}
+      <div
+        ref={scrollRef}
+        className="h-[65vh] min-h-[320px] overflow-y-auto"
+        style={{ touchAction: "pan-y" }}
+      >
         <div className={hidden ? "invisible" : undefined}>
           <div
+            ref={headerRef}
             className="sticky top-0 z-20 grid border-b border-line bg-panel"
             style={{ gridTemplateColumns: cols }}
           >
@@ -97,13 +108,13 @@ export function CalendarView({ date, range, refreshKey, jumpToken }: CalendarVie
             })}
           </div>
 
-          <div className="grid" style={{ gridTemplateColumns: cols, height: DAY_HEIGHT }}>
+          <div className="grid" style={{ gridTemplateColumns: cols, height: dayHeight(hourHeight) }}>
             <div className="relative">
               {HOURS.slice(1).map((h) => (
                 <span
                   key={h}
                   className="absolute right-1.5 -translate-y-1/2 text-[10px] text-muted"
-                  style={{ top: h * HOUR_HEIGHT }}
+                  style={{ top: h * hourHeight }}
                 >
                   {String(h).padStart(2, "0")}:00
                 </span>
@@ -117,7 +128,7 @@ export function CalendarView({ date, range, refreshKey, jumpToken }: CalendarVie
                 style={{
                   backgroundImage:
                     "repeating-linear-gradient(to bottom, transparent 0, transparent " +
-                    `${HOUR_HEIGHT - 1}px, rgb(var(--c-line)) ${HOUR_HEIGHT - 1}px, rgb(var(--c-line)) ${HOUR_HEIGHT}px)`,
+                    `${hourHeight - 1}px, rgb(var(--c-line)) ${hourHeight - 1}px, rgb(var(--c-line)) ${hourHeight}px)`,
                 }}
               />
             ))}

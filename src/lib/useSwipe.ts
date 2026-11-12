@@ -9,6 +9,7 @@ interface SwipeHandlers {
 /**
  * Розпізнає горизонтальний свайп (вліво/вправо), ігноруючи переважно
  * вертикальні жести, щоб не заважати звичайному скролу списку.
+ * Жест, у якому хоч раз було два пальці (щипок у календарі), — не свайп.
  */
 export function useHorizontalSwipe(
   onSwipeLeft: () => void,
@@ -16,13 +17,24 @@ export function useHorizontalSwipe(
   threshold = 50,
 ): SwipeHandlers {
   const start = useRef<{ x: number; y: number } | null>(null);
+  const multi = useRef(false);
 
   function onTouchStart(e: TouchEvent) {
+    if (e.touches.length > 1) {
+      multi.current = true;
+      start.current = null;
+      return;
+    }
+    multi.current = false;
     const t = e.touches[0];
     start.current = { x: t.clientX, y: t.clientY };
   }
 
   function onTouchEnd(e: TouchEvent) {
+    if (multi.current) {
+      if (e.touches.length === 0) multi.current = false; // усі пальці підняли — жест скінчився
+      return;
+    }
     const s = start.current;
     start.current = null;
     if (!s) return;
