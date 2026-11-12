@@ -1,6 +1,7 @@
 package com.planuvalnyk.app
 
 import android.app.Activity
+import android.util.Log
 import app.tauri.annotation.Command
 import app.tauri.annotation.TauriPlugin
 import app.tauri.plugin.Invoke
@@ -9,8 +10,8 @@ import app.tauri.plugin.Plugin
 import org.json.JSONArray
 
 // Плагін Tauri «reminders»: JS передає весь план нагадувань одним викликом.
-// Виклики з JS: plugin:reminders|schedule, |cancel_all, |take_pending_done
-// (Tauri перетворює snake_case на назви методів: cancelAll, takePendingDone).
+// Виклики з JS: plugin:reminders|schedule, |cancel_all, |pending_done, |ack_done
+// (Tauri перетворює snake_case на назви методів: cancelAll, pendingDone, ackDone).
 @TauriPlugin
 class RemindersPlugin(private val activity: Activity) : Plugin(activity) {
 
@@ -37,16 +38,31 @@ class RemindersPlugin(private val activity: Activity) : Plugin(activity) {
   }
 
   // Задачі, позначені кнопкою «Виконано», поки застосунок був закритий.
-  // Відповідь: { taskIds: string[] }; черга після цього порожня.
+  // Відповідь: { taskIds: string[] }. Черга НЕ очищається — лише ackDone
+  // після успішного запису в базу.
   @Command
-  fun takePendingDone(invoke: Invoke) {
+  fun pendingDone(invoke: Invoke) {
     try {
-      val ids = ReminderAlarms.takePendingDone(activity.applicationContext)
+      val ids = ReminderAlarms.pendingDone(activity.applicationContext)
+      Log.d(ReminderAlarms.TAG, "pendingDone: у черзі ${ids.size}")
       val ret = JSObject()
       ret.put("taskIds", JSONArray(ids))
       invoke.resolve(ret)
     } catch (e: Exception) {
       invoke.reject("Не вдалося прочитати виконані задачі: ${e.message}")
+    }
+  }
+
+  // Аргументи: { taskIds: string[] } — задачі, вже позначені в базі.
+  @Command
+  fun ackDone(invoke: Invoke) {
+    try {
+      val arr = invoke.getArgs().getJSONArray("taskIds")
+      val ids = (0 until arr.length()).map { arr.getString(it) }
+      ReminderAlarms.ackDone(activity.applicationContext, ids)
+      invoke.resolve()
+    } catch (e: Exception) {
+      invoke.reject("Не вдалося оновити чергу виконаних: ${e.message}")
     }
   }
 }

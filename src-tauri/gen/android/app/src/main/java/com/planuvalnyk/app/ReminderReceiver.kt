@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.util.Log
 import android.view.View
 import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
@@ -16,7 +17,13 @@ import androidx.core.content.ContextCompat
 class ReminderReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
     val id = intent.getIntExtra(ReminderAlarms.EXTRA_ID, -1)
-    val reminder = ReminderAlarms.find(context, id) ?: return
+    val reminder = ReminderAlarms.find(context, id)
+    if (reminder == null) {
+      Log.d(ReminderAlarms.TAG, "receiver: id=$id немає в збереженому плані — пропускаю")
+      return
+    }
+    val lateSec = (System.currentTimeMillis() - reminder.whenMs) / 1000
+    Log.d(ReminderAlarms.TAG, "receiver: id=$id «${reminder.title}», запізнення ${lateSec} с")
     show(context, reminder)
   }
 
@@ -26,7 +33,10 @@ class ReminderReceiver : BroadcastReceiver() {
     fun show(ctx: Context, r: Reminder) {
       val manager = NotificationManagerCompat.from(ctx)
       // Без дозволу (Android 13+) або з вимкненими сповіщеннями показати не вийде
-      if (!manager.areNotificationsEnabled()) return
+      if (!manager.areNotificationsEnabled()) {
+        Log.d(ReminderAlarms.TAG, "show: сповіщення вимкнені або немає дозволу")
+        return
+      }
 
       val color = parseColor(ctx, r.color)
 
@@ -48,8 +58,10 @@ class ReminderReceiver : BroadcastReceiver() {
 
       try {
         manager.notify(r.id, notification)
+        Log.d(ReminderAlarms.TAG, "show: id=${r.id} показано, канал ${r.channelId}")
       } catch (e: SecurityException) {
-        // дозвіл забрали між перевіркою й показом — нічого не робимо
+        // дозвіл забрали між перевіркою й показом
+        Log.d(ReminderAlarms.TAG, "show: немає дозволу — ${e.message}")
       }
     }
 

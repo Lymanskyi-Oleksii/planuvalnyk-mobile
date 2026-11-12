@@ -5,7 +5,7 @@ fn main() {
         tauri_build::Attributes::new().plugin(
             "reminders",
             tauri_build::InlinedPlugin::new()
-                .commands(&["schedule", "cancel_all", "take_pending_done"])
+                .commands(&["schedule", "cancel_all", "pending_done", "ack_done"])
                 .default_permission(tauri_build::DefaultPermissionRule::AllowAllCommands),
         ),
     )

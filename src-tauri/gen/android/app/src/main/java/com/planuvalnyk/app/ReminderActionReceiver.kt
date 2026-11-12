@@ -4,19 +4,21 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import androidx.core.app.NotificationManagerCompat
 
 // Кнопки сповіщення «Виконано» і «Відкласти на 10 хв». Застосунок не відкривається.
 class ReminderActionReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
     val id = intent.getIntExtra(ReminderAlarms.EXTRA_ID, -1)
+    Log.d(ReminderAlarms.TAG, "action: ${intent.action}, id=$id, task=${intent.getStringExtra(EXTRA_TASK_ID)}")
     if (id == -1) return
     NotificationManagerCompat.from(context).cancel(id)
 
     when (intent.action) {
       ACTION_SNOOZE -> ReminderAlarms.snooze(context, id, SNOOZE_MS)
       ACTION_DONE -> {
-        // Задачу позначить JS при наступному відкритті (команда takePendingDone)
+        // Задачу позначить JS при наступному відкритті (команди pendingDone / ackDone)
         val taskId = intent.getStringExtra(EXTRA_TASK_ID)
         if (!taskId.isNullOrBlank()) ReminderAlarms.markDone(context, taskId)
       }

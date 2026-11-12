@@ -2529,16 +2529,28 @@
           "markdownDescription": "Denies the version command without any pre-configured scope."
         },
         {
-          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-schedule`\n- `allow-cancel-all`\n- `allow-take-pending-done`",
+          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-schedule`\n- `allow-cancel-all`\n- `allow-pending-done`\n- `allow-ack-done`",
           "type": "string",
           "const": "reminders:default",
-          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-schedule`\n- `allow-cancel-all`\n- `allow-take-pending-done`"
+          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-schedule`\n- `allow-cancel-all`\n- `allow-pending-done`\n- `allow-ack-done`"
+        },
+        {
+          "description": "Enables the ack_done command without any pre-configured scope.",
+          "type": "string",
+          "const": "reminders:allow-ack-done",
+          "markdownDescription": "Enables the ack_done command without any pre-configured scope."
         },
         {
           "description": "Enables the cancel_all command without any pre-configured scope.",
           "type": "string",
           "const": "reminders:allow-cancel-all",
           "markdownDescription": "Enables the cancel_all command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the pending_done command without any pre-configured scope.",
+          "type": "string",
+          "const": "reminders:allow-pending-done",
+          "markdownDescription": "Enables the pending_done command without any pre-configured scope."
         },
         {
           "description": "Enables the schedule command without any pre-configured scope.",
@@ -2553,10 +2565,22 @@
           "markdownDescription": "Enables the take_pending_done command without any pre-configured scope."
         },
         {
+          "description": "Denies the ack_done command without any pre-configured scope.",
+          "type": "string",
+          "const": "reminders:deny-ack-done",
+          "markdownDescription": "Denies the ack_done command without any pre-configured scope."
+        },
+        {
           "description": "Denies the cancel_all command without any pre-configured scope.",
           "type": "string",
           "const": "reminders:deny-cancel-all",
           "markdownDescription": "Denies the cancel_all command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the pending_done command without any pre-configured scope.",
+          "type": "string",
+          "const": "reminders:deny-pending-done",
+          "markdownDescription": "Denies the pending_done command without any pre-configured scope."
         },
         {
           "description": "Denies the schedule command without any pre-configured scope.",

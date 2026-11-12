@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabaseClient";
 import { setCurrentUserId } from "./lib/session";
@@ -16,7 +16,8 @@ import { useWeekSummaries } from "./hooks/useWeekSummaries";
 import { addDays, toISODate } from "./lib/date";
 import { startOfWeekISO, weekDates } from "./lib/week";
 import { useHorizontalSwipe } from "./lib/useSwipe";
-import { keepPendingDone, rescheduleReminders, takePendingDone } from "./lib/reminders";
+import { ackDone, pendingDone, rescheduleReminders } from "./lib/reminders";
+import { onAppResume } from "./lib/appResume";
 import { toggleScheduledTask as setScheduledTaskDone } from "./db/database";
 import { subscribeSettings } from "./lib/settings";
 import { SettingsScreen } from "./components/SettingsScreen";
@@ -94,6 +95,7 @@ function PlannerApp() {
     saveNote,
     addMultiDayNote,
     deleteMultiDayNote,
+    reload: reloadDay,
   } = useDayData(activeDate);
 
   // Тиждень, який показано в смужці зверху. Навмисно ОКРЕМИЙ від activeDate:
@@ -118,45 +120,57 @@ function PlannerApp() {
     void rescheduleReminders();
   }, [refreshKey]);
 
-  // Кнопка «Виконано» в сповіщенні лише ставить задачу в чергу на телефоні;
-  // позначаємо її тут — при старті й коли застосунок повертається на передній план.
+  // Кнопка «Виконано» в сповіщенні лише ставить задачу в чергу на телефоні.
+  // Тут позначаємо її в базі й лише після успіху прибираємо з черги.
+  // reloadDay — у ref, щоб обробник повернення бачив поточний день.
+  const reloadDayRef = useRef(reloadDay);
+  reloadDayRef.current = reloadDay;
+
   useEffect(() => {
-    let running = false;
+    let running: Promise<void> | null = null;
+
     const applyPendingDone = async () => {
-      if (running) return;
-      running = true;
-      try {
-        const ids = await takePendingDone();
-        if (ids.length === 0) return;
-        const failed: string[] = [];
-        for (const id of ids) {
-          try {
-            await setScheduledTaskDone(id, true);
-          } catch {
-            failed.push(id);
-          }
+      // Сесія: getSession оновлює прострочений токен до запису в базу
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) return;
+
+      const ids = await pendingDone();
+      if (ids.length === 0) return;
+      const saved: string[] = [];
+      for (const id of ids) {
+        try {
+          await setScheduledTaskDone(id, true);
+          saved.push(id);
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.error("Не вдалося позначити задачу з сповіщення:", err);
         }
-        keepPendingDone(failed); // спробуємо ще раз наступного разу
-        if (failed.length < ids.length) bump();
-      } finally {
-        running = false;
+      }
+      await ackDone(saved); // те, що не записалось, лишається в черзі до наступного разу
+      if (saved.length > 0) {
+        await reloadDayRef.current(); // галочки на екрані
+        bump(); // тиждень і нагадування
       }
     };
 
-    void applyPendingDone();
-    const onVisible = () => {
-      if (document.visibilityState === "visible") void applyPendingDone();
+    // Спершу виконані з сповіщень, потім перепланування: інакше план
+    // поверне будильники задачі, яку щойно позначили.
+    const sync = (reschedule: boolean) => {
+      if (!running) {
+        running = applyPendingDone()
+          .catch((err) => {
+            // eslint-disable-next-line no-console
+            console.error("Черга «Виконано» не оброблена:", err);
+          })
+          .finally(() => {
+            running = null;
+          });
+      }
+      if (reschedule) void running.then(() => rescheduleReminders());
     };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
-  }, []);
 
-  useEffect(() => {
-    const onVisible = () => {
-      if (document.visibilityState === "visible") void rescheduleReminders();
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
+    sync(false); // при старті перепланування й так запускає ефект refreshKey
+    return onAppResume(() => sync(true));
   }, []);
 
   // Зміна налаштувань нагадувань: перепланувати з невеликою затримкою,
