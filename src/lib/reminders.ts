@@ -19,6 +19,7 @@ import {
   buildPlan,
   toCategory,
   type PlanDailyTask,
+  type PlanMultiDayTask,
   type PlanTask,
   type PlannedReminder,
 } from "./reminderPlan";
@@ -374,6 +375,35 @@ async function fetchDailyTasks(userId: string, from: string, to: string): Promis
   return (data ?? []).map((r) => ({ date: r.date as string, title: r.title as string, done: r.done as boolean }));
 }
 
+// Невиконані задачі на кілька днів, що перетинають [from, to] — для ранкового плану
+async function fetchMultiDayTasks(userId: string, from: string, to: string): Promise<PlanMultiDayTask[]> {
+  const { data, error } = await supabase
+    .from("multi_day_tasks")
+    .select("start_date, end_date, title, done")
+    .eq("user_id", userId)
+    .eq("done", false)
+    .lte("start_date", to)
+    .gte("end_date", from)
+    .order("sort_order", { ascending: true })
+    .order("start_date", { ascending: true });
+  // міграцію migration_multi_day_tasks.sql ще не запущено: працюємо без них
+  const missing =
+    error &&
+    (error.code === "42P01" ||
+      error.code === "PGRST205" ||
+      /multi_day_tasks.*(does not exist|could not find)|(does not exist|could not find).*multi_day_tasks/i.test(
+        error.message ?? ""
+      ));
+  if (missing) return [];
+  if (error) throw error;
+  return (data ?? []).map((r) => ({
+    startDate: r.start_date as string,
+    endDate: r.end_date as string,
+    title: r.title as string,
+    done: r.done as boolean,
+  }));
+}
+
 async function doReschedule(): Promise<void> {
   try {
     const mobile = await isMobile();
@@ -390,11 +420,12 @@ async function doReschedule(): Promise<void> {
     const userId = requireUserId();
     const today = toISODate(new Date());
     const until = addDays(today, DAYS_AHEAD);
-    const [tasks, daily] = await Promise.all([
+    const [tasks, daily, spanning] = await Promise.all([
       fetchTasks(userId, today, until),
       settings.morningDigest ? fetchDailyTasks(userId, today, until) : Promise.resolve([]),
+      settings.morningDigest ? fetchMultiDayTasks(userId, today, until) : Promise.resolve([]),
     ]);
-    const plan = buildPlan(tasks, settings, new Date(), daily).slice(0, MAX_NOTIFICATIONS);
+    const plan = buildPlan(tasks, settings, new Date(), daily, spanning).slice(0, MAX_NOTIFICATIONS);
 
     if (!(await requestNotificationPermission())) {
       publish("denied", plan);

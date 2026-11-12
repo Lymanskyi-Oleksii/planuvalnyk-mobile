@@ -1,5 +1,5 @@
 import { CATEGORY_LABELS, type Category } from "@/types";
-import { fromISODate } from "./date";
+import { addDays, fromISODate, toISODate } from "./date";
 import { durationLabel, inQuietHours, type ReminderSettings } from "./settings";
 
 // План нагадувань: чиста функція «задачі + налаштування → список сповіщень».
@@ -24,6 +24,14 @@ export interface PlanTask {
 // Задача дня без часу (таблиця daily_tasks) — лише для ранкового плану
 export interface PlanDailyTask {
   date: string; // YYYY-MM-DD
+  title: string;
+  done: boolean;
+}
+
+// Задача на кілька днів (таблиця multi_day_tasks) — у ранковому плані кожного дня діапазону
+export interface PlanMultiDayTask {
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
   title: string;
   done: boolean;
 }
@@ -73,6 +81,7 @@ const SNACK_BEFORE_MIN = 60; // перекус за годину до вечір
 const SNACK_FROM_HOUR = 17; // «вечірнє» тренування: початок о 17:00 або пізніше
 const POST_MIN = 3; // пульс через 3 хв після заняття
 const DIGEST_LINES = 6;
+const MULTI_DAY_AHEAD = 7; // на скільки днів наперед розгортати задачі на кілька днів (як DAYS_AHEAD у reminders.ts)
 
 export function toCategory(value: string): Category {
   return value in CATEGORY_LABELS ? (value as Category) : "other";
@@ -111,7 +120,8 @@ export function buildPlan(
   tasks: PlanTask[],
   s: ReminderSettings,
   now: Date,
-  dailyTasks: PlanDailyTask[] = []
+  dailyTasks: PlanDailyTask[] = [],
+  multiDayTasks: PlanMultiDayTask[] = []
 ): PlannedReminder[] {
   if (!s.enabled) return [];
 
@@ -209,9 +219,20 @@ export function buildPlan(
       else byDate.set(t.date, [t]);
     }
 
-    // Невиконані задачі дня без часу — лише в ранковому плані
+    // Невиконані задачі дня без часу — лише в ранковому плані.
+    // Задачі на кілька днів — копією на кожен день діапазону, перед задачами дня.
+    const today = toISODate(now);
+    const lastDay = addDays(today, MULTI_DAY_AHEAD);
+    const spanDaily: PlanDailyTask[] = [];
+    for (const t of multiDayTasks) {
+      if (t.done) continue;
+      const end = t.endDate < lastDay ? t.endDate : lastDay;
+      for (let d = t.startDate > today ? t.startDate : today; d <= end; d = addDays(d, 1)) {
+        spanDaily.push({ date: d, title: t.title, done: false });
+      }
+    }
     const dailyByDate = new Map<string, PlanDailyTask[]>();
-    for (const t of dailyTasks) {
+    for (const t of [...spanDaily, ...dailyTasks]) {
       if (t.done) continue;
       const list = dailyByDate.get(t.date);
       if (list) list.push(t);
