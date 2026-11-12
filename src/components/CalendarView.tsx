@@ -14,7 +14,8 @@ interface CalendarViewProps {
 
 const HOURS = Array.from({ length: 24 }, (_, h) => h);
 
-// Погодинна сітка: шапка днів не прокручується, під нею один вертикальний скрол.
+// Погодинна сітка. Шапка днів — sticky всередині того ж контейнера прокрутки, що й сітка:
+// повзунок звужує обидві однаково, тож колонки шапки й сітки збігаються.
 export function CalendarView({ date, range, refreshKey }: CalendarViewProps) {
   const dates = rangeDates(date, range);
   const tasks = useRangeTasks(dates, refreshKey);
@@ -45,29 +46,32 @@ export function CalendarView({ date, range, refreshKey }: CalendarViewProps) {
   }, [key, tasks]);
 
   return (
-    <section className="flex flex-col overflow-hidden rounded-xl2 border border-line bg-panel shadow-card">
-      <div className="grid border-b border-line" style={{ gridTemplateColumns: cols }}>
-        <div />
-        {dates.map((d) => {
-          const today = isToday(d);
-          return (
-            <div key={d} className="flex flex-col items-center gap-0.5 border-l border-line py-2">
-              <span className={`text-[11px] font-medium uppercase ${today ? "text-accent" : "text-muted"}`}>
-                {WEEKDAY_SHORT[(parseISO(d).getDay() + 6) % 7]}
-              </span>
-              <span
-                className={`flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold ${
-                  today ? "bg-accent text-white" : "text-ink"
-                }`}
-              >
-                {dayOfMonth(d)}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-
+    <section className="overflow-hidden rounded-xl2 border border-line bg-panel shadow-card">
       <div ref={scrollRef} className="h-[65vh] min-h-[320px] overflow-y-auto">
+        <div
+          className="sticky top-0 z-20 grid border-b border-line bg-panel"
+          style={{ gridTemplateColumns: cols }}
+        >
+          <div />
+          {dates.map((d) => {
+            const today = isToday(d);
+            return (
+              <div key={d} className="flex flex-col items-center gap-0.5 border-l border-line py-2">
+                <span className={`text-[11px] font-medium uppercase ${today ? "text-accent" : "text-muted"}`}>
+                  {WEEKDAY_SHORT[(parseISO(d).getDay() + 6) % 7]}
+                </span>
+                <span
+                  className={`flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold ${
+                    today ? "bg-accent text-white" : "text-ink"
+                  }`}
+                >
+                  {dayOfMonth(d)}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
         <div className="grid" style={{ gridTemplateColumns: cols, height: DAY_HEIGHT }}>
           <div className="relative">
             {HOURS.slice(1).map((h) => (
