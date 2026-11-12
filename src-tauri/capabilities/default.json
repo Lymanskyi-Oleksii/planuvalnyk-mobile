@@ -9,6 +9,7 @@
     "core:window:allow-close",
     "core:window:allow-start-dragging",
     "os:default",
-    "notification:default"
+    "notification:default",
+    "reminders:default"
   ]
 }

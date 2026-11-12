@@ -35,15 +35,16 @@ Android потрібен свій Kotlin-код. iOS і комп'ютер лиш
 Кольори категорій узяти з `CATEGORY_COLORS` у `src/lib/reminderPlan.ts`.
 
 ### Етап 2. Нативний плагін `reminders`
-- [ ] `RemindersPlugin.kt` у `gen/android/app/src/main/java/com/planuvalnyk/app/`
+- [x] `RemindersPlugin.kt` у `gen/android/app/src/main/java/com/planuvalnyk/app/`
       (клас `Plugin` з `@TauriPlugin`, методи з `@Command`): `schedule` і `cancelAll`.
-- [ ] `schedule` зберігає список у `SharedPreferences` і ставить будильники
+- [x] `schedule` зберігає список у `SharedPreferences` і ставить будильники
       `AlarmManager.setExactAndAllowWhileIdle` на `ReminderReceiver`.
       Якщо `canScheduleExactAlarms()` повертає `false` — `setAndAllowWhileIdle`.
-- [ ] Реєстрація в `src-tauri/src/lib.rs`: `tauri::plugin::Builder::new("reminders")`
+      Спільна логіка — `ReminderAlarms.kt`; `ReminderReceiver.kt` поки заглушка (етап 3).
+- [x] Реєстрація в `src-tauri/src/lib.rs`: `tauri::plugin::Builder::new("reminders")`
       з `register_android_plugin("com.planuvalnyk.app", "RemindersPlugin")`
       під `#[cfg(target_os = "android")]`.
-- [ ] Дозволи команд: `InlinedPlugin` у `src-tauri/build.rs` і `"reminders:default"`
+- [x] Дозволи команд: `InlinedPlugin` у `src-tauri/build.rs` і `"reminders:default"`
       у `src-tauri/capabilities/default.json`.
 
 Поля одного нагадування: `id`, `whenMs`, `title`, `body`, `details`, `color`, `emoji`,
