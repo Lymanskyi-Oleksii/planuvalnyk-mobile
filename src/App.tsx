@@ -16,7 +16,8 @@ import { useWeekSummaries } from "./hooks/useWeekSummaries";
 import { addDays, toISODate } from "./lib/date";
 import { startOfWeekISO, weekDates } from "./lib/week";
 import { useHorizontalSwipe } from "./lib/useSwipe";
-import { rescheduleReminders } from "./lib/reminders";
+import { keepPendingDone, rescheduleReminders, takePendingDone } from "./lib/reminders";
+import { toggleScheduledTask as setScheduledTaskDone } from "./db/database";
 import { subscribeSettings } from "./lib/settings";
 import { SettingsScreen } from "./components/SettingsScreen";
 import { Toaster } from "./components/Toaster";
@@ -116,6 +117,39 @@ function PlannerApp() {
   useEffect(() => {
     void rescheduleReminders();
   }, [refreshKey]);
+
+  // Кнопка «Виконано» в сповіщенні лише ставить задачу в чергу на телефоні;
+  // позначаємо її тут — при старті й коли застосунок повертається на передній план.
+  useEffect(() => {
+    let running = false;
+    const applyPendingDone = async () => {
+      if (running) return;
+      running = true;
+      try {
+        const ids = await takePendingDone();
+        if (ids.length === 0) return;
+        const failed: string[] = [];
+        for (const id of ids) {
+          try {
+            await setScheduledTaskDone(id, true);
+          } catch {
+            failed.push(id);
+          }
+        }
+        keepPendingDone(failed); // спробуємо ще раз наступного разу
+        if (failed.length < ids.length) bump();
+      } finally {
+        running = false;
+      }
+    };
+
+    void applyPendingDone();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void applyPendingDone();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
 
   useEffect(() => {
     const onVisible = () => {

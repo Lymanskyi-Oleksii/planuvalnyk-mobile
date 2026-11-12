@@ -36,6 +36,11 @@
             android:name=".ReminderReceiver"
             android:exported="false" />
 
+        <!-- Кнопки сповіщення «Виконано» і «Відкласти на 10 хв» -->
+        <receiver
+            android:name=".ReminderActionReceiver"
+            android:exported="false" />
+
         <provider
           android:name="androidx.core.content.FileProvider"
           android:authorities="${applicationId}.fileprovider"

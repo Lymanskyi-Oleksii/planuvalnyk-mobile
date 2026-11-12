@@ -21,6 +21,8 @@ data class Reminder(
   val channelId: String,
   val date: String,
   val taskId: String,
+  // Відкладене кнопкою «Відкласти на 10 хв»: переживає нове планування з JS
+  val snoozed: Boolean = false,
 ) {
   fun toJson(): JSONObject = JSONObject()
     .put("id", id)
@@ -34,6 +36,7 @@ data class Reminder(
     .put("channelId", channelId)
     .put("date", date)
     .put("taskId", taskId)
+    .put("snoozed", snoozed)
 
   companion object {
     fun fromJson(o: JSONObject) = Reminder(
@@ -48,15 +51,17 @@ data class Reminder(
       channelId = o.optString("channelId"),
       date = o.optString("date"),
       taskId = o.optString("taskId"),
+      snoozed = o.optBoolean("snoozed"),
     )
   }
 }
 
-// Збереження плану й будильники. Спільне для плагіна, показу сповіщення,
-// кнопок і відновлення після перезавантаження телефона.
+// Збереження плану, будильники й черга «Виконано». Спільне для плагіна, показу
+// сповіщення, кнопок і відновлення після перезавантаження телефона.
 object ReminderAlarms {
   private const val PREFS = "reminders"
   private const val KEY_LIST = "list"
+  private const val KEY_PENDING_DONE = "pending_done"
   const val EXTRA_ID = "id"
 
   fun parse(arr: JSONArray): List<Reminder> =
@@ -99,11 +104,69 @@ object ReminderAlarms {
     }
   }
 
+  /**
+   * Новий план із JS замінює попередній. Відкладені нагадування, яких у новому
+   * плані немає (їхній початковий час уже минув), лишаються.
+   */
+  fun replacePlan(ctx: Context, plan: List<Reminder>) {
+    val now = System.currentTimeMillis()
+    val old = load(ctx)
+    val keep = old.filter { r -> r.snoozed && r.whenMs > now && plan.none { it.id == r.id } }
+    cancel(ctx, old)
+    val merged = plan + keep
+    save(ctx, merged)
+    setAll(ctx, merged)
+  }
+
   /** Скасовує будильники збереженого плану й очищає його. */
   fun cancelAll(ctx: Context) {
-    val am = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-    load(ctx).forEach { am.cancel(pendingIntent(ctx, it.id)) }
+    cancel(ctx, load(ctx))
     save(ctx, emptyList())
+  }
+
+  /** «Відкласти»: те саме нагадування ще раз через `delayMs`. */
+  fun snooze(ctx: Context, id: Int, delayMs: Long) {
+    val list = load(ctx)
+    val r = list.firstOrNull { it.id == id } ?: return
+    val moved = r.copy(whenMs = System.currentTimeMillis() + delayMs, snoozed = true)
+    save(ctx, list.map { if (it.id == id) moved else it })
+    set(ctx, id, moved.whenMs)
+  }
+
+  /** «Виконано»: прибрати всі нагадування задачі й запам'ятати її для JS. */
+  fun markDone(ctx: Context, taskId: String) {
+    val list = load(ctx)
+    val (task, rest) = list.partition { it.taskId == taskId }
+    cancel(ctx, task)
+    save(ctx, rest)
+
+    val prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    val queue = readQueue(prefs.getString(KEY_PENDING_DONE, null))
+    if (taskId !in queue) queue.add(taskId)
+    prefs.edit().putString(KEY_PENDING_DONE, JSONArray(queue).toString()).apply()
+  }
+
+  /** Віддає й очищає чергу задач, позначених кнопкою «Виконано». */
+  fun takePendingDone(ctx: Context): List<String> {
+    val prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    val queue = readQueue(prefs.getString(KEY_PENDING_DONE, null))
+    prefs.edit().remove(KEY_PENDING_DONE).apply()
+    return queue
+  }
+
+  private fun readQueue(raw: String?): MutableList<String> {
+    if (raw == null) return mutableListOf()
+    return try {
+      val arr = JSONArray(raw)
+      (0 until arr.length()).map { arr.getString(it) }.toMutableList()
+    } catch (e: Exception) {
+      mutableListOf()
+    }
+  }
+
+  private fun cancel(ctx: Context, list: List<Reminder>) {
+    val am = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+    list.forEach { am.cancel(pendingIntent(ctx, it.id)) }
   }
 
   private fun pendingIntent(ctx: Context, id: Int): PendingIntent {

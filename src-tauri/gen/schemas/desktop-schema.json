@@ -2529,10 +2529,10 @@
           "markdownDescription": "Denies the version command without any pre-configured scope."
         },
         {
-          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-schedule`\n- `allow-cancel-all`",
+          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-schedule`\n- `allow-cancel-all`\n- `allow-take-pending-done`",
           "type": "string",
           "const": "reminders:default",
-          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-schedule`\n- `allow-cancel-all`"
+          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-schedule`\n- `allow-cancel-all`\n- `allow-take-pending-done`"
         },
         {
           "description": "Enables the cancel_all command without any pre-configured scope.",
@@ -2547,6 +2547,12 @@
           "markdownDescription": "Enables the schedule command without any pre-configured scope."
         },
         {
+          "description": "Enables the take_pending_done command without any pre-configured scope.",
+          "type": "string",
+          "const": "reminders:allow-take-pending-done",
+          "markdownDescription": "Enables the take_pending_done command without any pre-configured scope."
+        },
+        {
           "description": "Denies the cancel_all command without any pre-configured scope.",
           "type": "string",
           "const": "reminders:deny-cancel-all",
@@ -2557,6 +2563,12 @@
           "type": "string",
           "const": "reminders:deny-schedule",
           "markdownDescription": "Denies the schedule command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the take_pending_done command without any pre-configured scope.",
+          "type": "string",
+          "const": "reminders:deny-take-pending-done",
+          "markdownDescription": "Denies the take_pending_done command without any pre-configured scope."
         }
       ]
     },

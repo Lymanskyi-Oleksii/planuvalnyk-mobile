@@ -213,6 +213,44 @@ async function cancelAndroid(): Promise<void> {
   await invoke("plugin:reminders|cancel_all");
 }
 
+// Задачі, які не вдалося позначити (наприклад, без інтернету): спробуємо ще раз
+const PENDING_DONE_KEY = "planner.pendingDone";
+
+function readKeptDone(): string[] {
+  try {
+    const raw = localStorage.getItem(PENDING_DONE_KEY);
+    const list: unknown = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? list.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Задачі, позначені кнопкою «Виконано» в сповіщенні (Android).
+ * Нативна черга після виклику порожня, тож те, що не вдалося зберегти,
+ * треба повернути через keepPendingDone.
+ */
+export async function takePendingDone(): Promise<string[]> {
+  const kept = readKeptDone();
+  if (!isAndroid()) return kept;
+  try {
+    const res = await invoke<{ taskIds: string[] }>("plugin:reminders|take_pending_done");
+    return Array.from(new Set([...kept, ...res.taskIds]));
+  } catch {
+    return kept;
+  }
+}
+
+export function keepPendingDone(taskIds: string[]): void {
+  try {
+    if (taskIds.length > 0) localStorage.setItem(PENDING_DONE_KEY, JSON.stringify(taskIds));
+    else localStorage.removeItem(PENDING_DONE_KEY);
+  } catch {
+    // сховище недоступне — задачу можна позначити вручну
+  }
+}
+
 // iOS: кожне нагадування окремим системним сповіщенням
 function deliver(p: PlannedReminder, mode: AlertMode, when: Date = p.when): void {
   sendNotification({

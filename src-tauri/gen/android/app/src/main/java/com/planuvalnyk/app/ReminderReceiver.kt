@@ -63,7 +63,19 @@ class ReminderReceiver : BroadcastReceiver() {
       if (layout == R.layout.notification_reminder_big) {
         v.setTextViewText(R.id.reminder_details, r.details)
         v.setViewVisibility(R.id.reminder_details, if (r.details.isBlank()) View.GONE else View.VISIBLE)
-        // Обробники кнопок «Виконано» і «Відкласти на 10 хв» — етап 5 PLAN.md
+        v.setOnClickPendingIntent(
+          R.id.reminder_btn_snooze,
+          ReminderActionReceiver.pendingIntent(ctx, ReminderActionReceiver.ACTION_SNOOZE, r),
+        )
+        // У підсумків дня й тестового сповіщення немає задачі — «Виконано» ховаємо
+        if (r.taskId.isBlank()) {
+          v.setViewVisibility(R.id.reminder_btn_done, View.GONE)
+        } else {
+          v.setOnClickPendingIntent(
+            R.id.reminder_btn_done,
+            ReminderActionReceiver.pendingIntent(ctx, ReminderActionReceiver.ACTION_DONE, r),
+          )
+        }
       }
       return v
     }
