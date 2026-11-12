@@ -26,6 +26,9 @@ src-tauri/gen/android/.idea/
 .gradle/
 **/build/
 
+# Патчі
+*.patch
+
 # IDE
 .vscode/
 .idea/
