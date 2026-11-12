@@ -174,10 +174,10 @@ Android потрібен свій Kotlin-код. iOS і комп'ютер лиш
   (поки заглушка). Вкладки «Задачі» і «Нотатки» працюють як раніше.
 
 ### Етап 1. Дані на кілька днів
-- [ ] `src/hooks/useRangeTasks.ts`: `useRangeTasks(dates, refreshKey)` повертає
+- [x] `src/hooks/useRangeTasks.ts`: `useRangeTasks(dates, refreshKey)` повертає
   `Record<date, ScheduledTask[]>`. Читати через `db.getScheduledTasks(date)` для кожної
   дати (`Promise.all`), як у `useWeekSummaries.ts`.
-- [ ] `src/lib/calendarRange.ts`: `rangeDates(activeDate, range)` — 1 день: сам день;
+- [x] `src/lib/calendarRange.ts`: `rangeDates(activeDate, range)` — 1 день: сам день;
   3 дні: `activeDate` і два наступні; 7: тиждень з понеділка (`weekDates` з `lib/week.ts`).
 
 Підказка: НЕ брати `getTasksOnDates` — вона без офлайн-кешу. `getScheduledTasks` іде через
