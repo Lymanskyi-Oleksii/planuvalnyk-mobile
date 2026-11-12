@@ -80,8 +80,8 @@ export function ScheduleRow({ task, onToggleTask, onToggleSubtask, onEdit, onDel
         onBlur={() => setConfirmingDelete(false)}
         className={`flex h-8 shrink-0 items-center justify-center rounded-lg px-2 text-xs font-medium transition-colors sm:h-7 ${
           confirmingDelete
-            ? "bg-red-50 text-red-600"
-            : "w-8 text-muted hover:bg-canvas hover:text-red-600 sm:w-7"
+            ? "bg-danger-soft text-danger"
+            : "w-8 text-muted hover:bg-canvas hover:text-danger sm:w-7"
         }`}
         aria-label="Видалити задачу"
       >

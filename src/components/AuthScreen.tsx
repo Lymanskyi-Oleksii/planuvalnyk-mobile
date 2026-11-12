@@ -74,7 +74,7 @@ export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
           />
         </div>
 
-        {error && <p className="mt-3 text-xs font-medium text-red-600">{error}</p>}
+        {error && <p className="mt-3 text-xs font-medium text-danger">{error}</p>}
         {notice && <p className="mt-3 text-xs font-medium text-accent">{notice}</p>}
 
         <button

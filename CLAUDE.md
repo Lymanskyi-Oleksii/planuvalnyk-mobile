@@ -33,7 +33,9 @@
 - `src/lib/toast.ts` — сховище карток-повідомлень.
 - `src/types.ts` — типи й назви категорій.
 - `supabase/schema.sql` — схема бази; `supabase/migration_*.sql` — подальші зміни.
-- `tailwind.config.js` — кольори (`canvas`, `panel`, `line`, `ink`, `muted`, `accent`, `category.*`).
+- `tailwind.config.js` — кольори (`canvas`, `panel`, `line`, `ink`, `muted`, `accent`, `danger`,
+  `scrim`, `category.*`, `done`); значення — CSS-змінні в `src/index.css`.
+- `src/lib/theme.ts` — світла/темна тема (клас `dark` на `<html>`), вибір у налаштуваннях.
 
 ## Правила роботи
 
@@ -47,7 +49,8 @@
 6. Нові залежності — тільки якщо без них ніяк; перед додаванням запитати.
 7. Не чіпати `.env` і не комітити ключі.
 8. Стиль: Tailwind-класи з наявної палітри, картки `rounded-xl2 border border-line bg-panel shadow-card`.
-   Нові кольори додавати в `tailwind.config.js`, а не писати hex у компонентах.
+   Нові кольори додавати в `tailwind.config.js` і змінною `--c-…` у `src/index.css`
+   для обох тем (`:root` і `.dark`), а не писати hex у компонентах.
 9. Логіку «що і коли нагадувати» змінювати тільки в `reminderPlan.ts`; `reminders.ts` лише доставляє.
 10. Картки всередині застосунку (`toast`) — тільки для помилок і результатів дій у налаштуваннях.
     Про додавання чи видалення задачі не сповіщати.

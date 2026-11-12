@@ -4,12 +4,16 @@ import { CATEGORY_LABELS, type Category } from "@/types";
 import {
   ALERT_MODE_LABELS,
   DEFAULT_SETTINGS,
+  THEME_LABELS,
   isValidTime,
   leadLabel,
   loadSettings,
+  loadTheme,
   saveSettings,
+  saveTheme,
   type AlertMode,
   type ReminderSettings,
+  type ThemeMode,
 } from "@/lib/settings";
 import {
   getNotificationPermission,
@@ -34,6 +38,7 @@ interface SettingsScreenProps {
 const CATEGORY_OPTIONS = Object.entries(CATEGORY_LABELS) as [Category, string][];
 const ALL_CATEGORIES = CATEGORY_OPTIONS.map(([value]) => value);
 const ALERT_MODES = Object.entries(ALERT_MODE_LABELS) as [AlertMode, string][];
+const THEME_MODES = Object.entries(THEME_LABELS) as [ThemeMode, string][];
 const LEAD_PRESETS = [0, 5, 10, 15, 30, 60];
 const MIN_PASSWORD = 6;
 const UPCOMING_SHOWN = 5;
@@ -179,7 +184,7 @@ function statusView(status: ReminderStatus, enabled: boolean, permission: boolea
 const TONE_STYLES: Record<StatusView["tone"], { card: string; badge: string }> = {
   accent: { card: "border-accent/30 bg-accent-soft", badge: "bg-accent text-white" },
   muted: { card: "border-line bg-panel", badge: "bg-line text-muted" },
-  danger: { card: "border-red-200 bg-red-50", badge: "bg-red-600 text-white" },
+  danger: { card: "border-danger-line bg-danger-soft", badge: "bg-danger-strong text-white" },
 };
 
 function UpcomingRow({ item }: { item: PlannedReminder }) {
@@ -200,6 +205,7 @@ function UpcomingRow({ item }: { item: PlannedReminder }) {
 
 export function SettingsScreen({ open, onClose, onLogout }: SettingsScreenProps) {
   const [settings, setSettings] = useState<ReminderSettings>(() => loadSettings());
+  const [theme, setTheme] = useState<ThemeMode>(() => loadTheme());
   const [permission, setPermission] = useState<boolean | null>(null);
   const [status, setStatus] = useState<ReminderStatus>(() => getReminderStatus());
   const [testBusy, setTestBusy] = useState(false);
@@ -355,14 +361,14 @@ export function SettingsScreen({ open, onClose, onLogout }: SettingsScreenProps)
                 {settings.enabled && permission === false && (
                   <button
                     onClick={handleAllow}
-                    className="mt-2 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700"
+                    className="mt-2 rounded-lg bg-danger-strong px-3 py-1.5 text-xs font-semibold text-white hover:bg-danger-strong/90"
                   >
                     Дозволити сповіщення
                   </button>
                 )}
               </div>
             </div>
-            <div className="mt-3 border-t border-black/5 pt-1">
+            <div className="mt-3 border-t border-ink/5 pt-1">
               <Toggle
                 checked={settings.enabled}
                 onChange={(v) => update({ enabled: v })}
@@ -542,6 +548,27 @@ export function SettingsScreen({ open, onClose, onLogout }: SettingsScreenProps)
             </Section>
           </div>
 
+          <Section icon="sun" title="Оформлення">
+            <div className="grid grid-cols-3 gap-1 rounded-lg bg-canvas p-1" role="radiogroup" aria-label="Тема">
+              {THEME_MODES.map(([value, label]) => (
+                <button
+                  key={value}
+                  role="radio"
+                  aria-checked={theme === value}
+                  onClick={() => {
+                    setTheme(value);
+                    saveTheme(value);
+                  }}
+                  className={`rounded-md px-2 py-2 text-xs font-medium transition-colors ${
+                    theme === value ? "bg-panel text-accent shadow-card" : "text-muted"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </Section>
+
           <Section icon="user" title="Акаунт" hint={email ? `Ви увійшли як ${email}` : undefined}>
             {pwOpen ? (
               <form onSubmit={handleChangePassword} className="space-y-2">
@@ -563,7 +590,7 @@ export function SettingsScreen({ open, onClose, onLogout }: SettingsScreenProps)
                   aria-label="Повторіть новий пароль"
                   className={inputCls}
                 />
-                {pwError && <p className="text-xs font-medium text-red-600">{pwError}</p>}
+                {pwError && <p className="text-xs font-medium text-danger">{pwError}</p>}
                 <div className="flex gap-2">
                   <button
                     type="button"
@@ -592,7 +619,7 @@ export function SettingsScreen({ open, onClose, onLogout }: SettingsScreenProps)
                 {onLogout && (
                   <button
                     onClick={onLogout}
-                    className="flex-1 rounded-lg border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+                    className="flex-1 rounded-lg border border-danger-line px-4 py-2 text-sm font-medium text-danger hover:bg-danger-soft"
                   >
                     Вийти
                   </button>

@@ -108,7 +108,7 @@ export function TitleBar({
             </button>
             <button
               onClick={closeWindow}
-              className="flex h-7 w-9 items-center justify-center rounded text-muted hover:bg-red-50 hover:text-red-600"
+              className="flex h-7 w-9 items-center justify-center rounded text-muted hover:bg-danger-soft hover:text-danger"
               aria-label="Закрити"
             >
               <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none">

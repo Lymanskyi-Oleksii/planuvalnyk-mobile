@@ -44,7 +44,7 @@ export interface PlannedReminder {
   taskId?: string; // задача, яку позначає кнопка «Виконано»; у підсумків дня немає
 }
 
-// Ті самі кольори, що й у бейджів категорій (tailwind.config.js → category.*.fg)
+// Ті самі кольори, що й у бейджів категорій світлої теми (src/index.css → --c-*-fg)
 export const CATEGORY_COLORS: Record<Category, string> = {
   study: "#2563EB",
   university: "#4F46E5",

@@ -81,7 +81,7 @@ export function NotesPanel({
       {multiDayNotes.length > 0 && (
         <div className="space-y-2 border-b border-line bg-accent-soft/30 px-5 py-3">
           {multiDayNotes.map((n) => (
-            <div key={n.id} className="group flex items-start justify-between gap-2 rounded-lg bg-white px-3 py-2 shadow-sm">
+            <div key={n.id} className="group flex items-start justify-between gap-2 rounded-lg bg-panel px-3 py-2 shadow-sm">
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-semibold text-ink">{n.title}</span>

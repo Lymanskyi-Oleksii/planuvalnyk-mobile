@@ -122,7 +122,7 @@ export function AddTaskModal({ open, onClose, onSave, editingTask, existingTasks
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-6"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-scrim/30 p-6 dark:bg-scrim/60"
       onClick={onClose}
     >
       <div
@@ -178,10 +178,10 @@ export function AddTaskModal({ open, onClose, onSave, editingTask, existingTasks
           </div>
 
           {invalidRange && (
-            <p className="text-xs font-medium text-red-600">Час завершення має бути пізніше за початок.</p>
+            <p className="text-xs font-medium text-danger">Час завершення має бути пізніше за початок.</p>
           )}
           {!invalidRange && overlap && (
-            <p className="text-xs font-medium text-red-600">
+            <p className="text-xs font-medium text-danger">
               Накладається на «{overlap.title}» ({overlap.startTime}–{overlap.endTime}). Змініть час.
             </p>
           )}

@@ -4,6 +4,92 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Палітра (tailwind.config.js читає ці змінні). Формат: «R G B». */
+:root {
+  color-scheme: light;
+
+  --c-canvas: 247 248 250;
+  --c-panel: 255 255 255;
+  --c-line: 230 232 236;
+  --c-ink: 27 32 41;
+  --c-muted: 107 114 128;
+  --c-accent: 47 111 237;
+  --c-accent-soft: 234 241 255;
+
+  --c-danger: 220 38 38;
+  --c-danger-soft: 254 242 242;
+  --c-danger-line: 254 202 202;
+  --c-danger-strong: 220 38 38;
+  --c-scrim: 0 0 0;
+
+  --c-study-fg: 37 99 235;
+  --c-study-bg: 233 240 254;
+  --c-university-fg: 79 70 229;
+  --c-university-bg: 236 235 253;
+  --c-work-fg: 147 51 234;
+  --c-work-bg: 245 234 254;
+  --c-sport-fg: 249 115 22;
+  --c-sport-bg: 254 238 221;
+  --c-food-fg: 202 138 4;
+  --c-food-bg: 251 243 214;
+  --c-health-fg: 225 29 107;
+  --c-health-bg: 253 234 241;
+  --c-personal-fg: 22 163 74;
+  --c-personal-bg: 233 249 239;
+  --c-errands-fg: 8 145 178;
+  --c-errands-bg: 227 246 250;
+  --c-other-fg: 100 116 139;
+  --c-other-bg: 238 241 244;
+
+  --c-done-fg: 93 93 115;
+  --c-done-bg: 223 225 230;
+
+  --c-scrollbar: 215 218 224;
+}
+
+/* Темна тема: клас dark на <html> ставить lib/theme.ts */
+.dark {
+  color-scheme: dark;
+
+  --c-canvas: 15 17 21;
+  --c-panel: 24 27 33;
+  --c-line: 46 51 61;
+  --c-ink: 229 231 235;
+  --c-muted: 156 163 175;
+  --c-accent: 91 141 239;
+  --c-accent-soft: 30 43 74;
+
+  --c-danger: 248 113 113;
+  --c-danger-soft: 58 26 28;
+  --c-danger-line: 127 29 29;
+  --c-danger-strong: 220 38 38;
+  --c-scrim: 0 0 0;
+
+  --c-study-fg: 96 165 250;
+  --c-study-bg: 28 42 69;
+  --c-university-fg: 129 140 248;
+  --c-university-bg: 37 36 74;
+  --c-work-fg: 192 132 252;
+  --c-work-bg: 51 34 74;
+  --c-sport-fg: 251 146 60;
+  --c-sport-bg: 61 38 20;
+  --c-food-fg: 250 204 21;
+  --c-food-bg: 58 49 18;
+  --c-health-fg: 244 114 182;
+  --c-health-bg: 66 24 44;
+  --c-personal-fg: 74 222 128;
+  --c-personal-bg: 22 58 36;
+  --c-errands-fg: 34 211 238;
+  --c-errands-bg: 18 53 64;
+  --c-other-fg: 148 163 184;
+  --c-other-bg: 38 44 53;
+
+  --c-done-fg: 139 143 158;
+  --c-done-bg: 44 48 56;
+
+  --c-scrollbar: 58 64 76;
+}
+
 html,
 body,
 #root {
@@ -13,13 +99,15 @@ body,
 body {
   margin: 0;
   -webkit-font-smoothing: antialiased;
+  background-color: rgb(var(--c-canvas));
+  color: rgb(var(--c-ink));
 }
 
 ::-webkit-scrollbar {
   width: 8px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #d7dae0;
+  background: rgb(var(--c-scrollbar));
   border-radius: 8px;
 }
 

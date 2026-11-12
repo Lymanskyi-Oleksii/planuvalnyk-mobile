@@ -115,7 +115,7 @@ Android потрібен свій Kotlin-код. iOS і комп'ютер лиш
 - [x] **Відкривати потрібний день після натискання на сповіщення.** `MainActivity`
       отримує `extra date`, передає в JS, `App.tsx` викликає `setActiveDate`.
       (`onCreate`/`onNewIntent` → команда `take_open_date` при старті й поверненні.)
-- [ ] **Темна тема.** Кольори в `tailwind.config.js` перевести на
+- [x] **Темна тема.** Кольори в `tailwind.config.js` перевести на
       `rgb(var(--c-…) / <alpha-value>)`, `darkMode: "class"`, змінні в `src/index.css`,
       поле `theme` у `settings.ts`. Знайти жорстко задані `bg-white`, `bg-red-50`,
       `text-green-700`, `bg-black/30`.

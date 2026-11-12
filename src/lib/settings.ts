@@ -122,6 +122,46 @@ export function subscribeSettings(cb: (s: ReminderSettings) => void): () => void
   };
 }
 
+// ── Оформлення ───────────────────────────────────────────────────────────────
+// Тема зберігається окремо від налаштувань нагадувань: її зміна не перепланує
+// сповіщення, а «Скинути налаштування» її не чіпає.
+
+export type ThemeMode = "system" | "light" | "dark";
+
+export const THEME_LABELS: Record<ThemeMode, string> = {
+  system: "Як у системі",
+  light: "Світла",
+  dark: "Темна",
+};
+
+const THEME_KEY = "planner.theme.v1";
+const themeListeners = new Set<(t: ThemeMode) => void>();
+
+export function loadTheme(): ThemeMode {
+  try {
+    const t = localStorage.getItem(THEME_KEY);
+    return t === "light" || t === "dark" || t === "system" ? t : "system";
+  } catch {
+    return "system";
+  }
+}
+
+export function saveTheme(t: ThemeMode): void {
+  try {
+    localStorage.setItem(THEME_KEY, t);
+  } catch {
+    // сховище недоступне: тема діятиме до закриття застосунку
+  }
+  themeListeners.forEach((cb) => cb(t));
+}
+
+export function subscribeTheme(cb: (t: ThemeMode) => void): () => void {
+  themeListeners.add(cb);
+  return () => {
+    themeListeners.delete(cb);
+  };
+}
+
 function toMinutes(hhmm: string): number {
   const [h, m] = hhmm.split(":").map(Number);
   return h * 60 + m;

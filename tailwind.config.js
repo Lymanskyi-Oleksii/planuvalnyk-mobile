@@ -1,6 +1,13 @@
+// Кольори задано CSS-змінними (src/index.css): світла тема в :root, темна в .dark.
+// Значення змінної — «R G B», щоб працювала прозорість: bg-accent/90.
+const v = (name) => `rgb(var(--c-${name}) / <alpha-value>)`;
+
+const category = (name) => ({ fg: v(`${name}-fg`), bg: v(`${name}-bg`) });
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
+  darkMode: "class",
   theme: {
     extend: {
       fontFamily: {
@@ -13,30 +20,39 @@ export default {
         ],
       },
       colors: {
-        canvas: "#F7F8FA",
-        panel: "#FFFFFF",
-        line: "#E6E8EC",
-        ink: "#1B2029",
-        muted: "#6B7280",
+        canvas: v("canvas"),
+        panel: v("panel"),
+        line: v("line"),
+        ink: v("ink"),
+        muted: v("muted"),
         accent: {
-          DEFAULT: "#2F6FED",
-          soft: "#EAF1FF",
+          DEFAULT: v("accent"),
+          soft: v("accent-soft"),
         },
+        // Помилки й небезпечні дії
+        danger: {
+          DEFAULT: v("danger"), // текст
+          soft: v("danger-soft"), // фон
+          line: v("danger-line"), // рамка
+          strong: v("danger-strong"), // суцільна кнопка з білим текстом
+        },
+        // Затемнення під модальними вікнами
+        scrim: v("scrim"),
         category: {
-          study: { fg: "#2563EB", bg: "#E9F0FE" },
-          university: { fg: "#4F46E5", bg: "#ECEBFD" },
-          work: { fg: "#9333EA", bg: "#F5EAFE" },
-          sport: { fg: "#F97316", bg: "#FEEEDD" },
-          food: { fg: "#CA8A04", bg: "#FBF3D6" },
-          health: { fg: "#E11D6B", bg: "#FDEAF1" },
-          personal: { fg: "#16A34A", bg: "#E9F9EF" },
-          errands: { fg: "#0891B2", bg: "#E3F6FA" },
-          other: { fg: "#64748B", bg: "#EEF1F4" },
+          study: category("study"),
+          university: category("university"),
+          work: category("work"),
+          sport: category("sport"),
+          food: category("food"),
+          health: category("health"),
+          personal: category("personal"),
+          errands: category("errands"),
+          other: category("other"),
         },
 
         done: {
-          fg: "#5D5D73",
-          bg: "#DFE1E6", // помітно сірий, а не білуватий відтінок
+          fg: v("done-fg"),
+          bg: v("done-bg"), // помітно сірий, а не білуватий відтінок
         },
       },
       borderRadius: {

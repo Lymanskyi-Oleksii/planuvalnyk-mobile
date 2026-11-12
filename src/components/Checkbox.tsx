@@ -15,7 +15,7 @@ export function Checkbox({ checked, onChange, size = "md" }: CheckboxProps) {
       className={`${dim} shrink-0 rounded-md border flex items-center justify-center transition-colors ${
         checked
           ? "bg-accent border-accent"
-          : "bg-white border-line hover:border-accent/60"
+          : "bg-panel border-line hover:border-accent/60"
       }`}
     >
       {checked && (
