@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Checkbox } from "./Checkbox";
 import { Toggle } from "./Toggle";
 import { leadLabel, loadSettings } from "@/lib/settings";
@@ -85,6 +85,7 @@ export function AddTaskModal({
   const [details, setDetails] = useState("");
   const [subtasks, setSubtasks] = useState<string[]>([]);
   const [subtaskDraft, setSubtaskDraft] = useState("");
+  const subtaskInputRef = useRef<HTMLInputElement>(null);
   // null = користувач нічого не міняв, діють загальні налаштування
   const [remindOverride, setRemindOverride] = useState<boolean | null>(null);
   const [leadOverride, setLeadOverride] = useState<number | null>(null);
@@ -197,6 +198,8 @@ export function AddTaskModal({
       setSubtasks((s) => [...s, subtaskDraft.trim()]);
       setSubtaskDraft("");
     }
+    // Фокус лишається в полі — одразу писати наступну
+    subtaskInputRef.current?.focus();
   }
 
   function removeSubtask(i: number) {
@@ -206,6 +209,8 @@ export function AddTaskModal({
   function handleSubmit(scope: SeriesScope = "one") {
     if (!canSave) return;
     if (scope === "following" && seriesPending) return;
+    // Текст, не доданий кнопкою «+», не губиться — стає останньою підзадачею
+    const draft = subtaskDraft.trim();
     onSave(
       {
         startTime,
@@ -213,7 +218,7 @@ export function AddTaskModal({
         title: title.trim(),
         category,
         details: details.trim() || undefined,
-        subtasks,
+        subtasks: draft ? [...subtasks, draft] : subtasks,
         remind: remindOverride,
         remindBeforeMin: leadOverride,
         repeatDates: newRepeatDates.filter((d) => !repeatSkipped.includes(d)),
@@ -423,10 +428,13 @@ export function AddTaskModal({
             </label>
             <div className="flex gap-2">
               <input
+                ref={subtaskInputRef}
                 value={subtaskDraft}
                 onChange={(e) => setSubtaskDraft(e.target.value)}
+                // «enter», а не «next»: на Android «next» переводить фокус на наступне поле
+                enterKeyHint="enter"
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") {
+                  if (e.key === "Enter" || e.keyCode === 13) {
                     e.preventDefault();
                     addSubtaskDraft();
                   }
@@ -435,6 +443,9 @@ export function AddTaskModal({
                 className="flex-1 rounded-lg border border-line px-3 py-2 text-sm text-ink outline-none focus:border-accent"
               />
               <button
+                type="button"
+                // Поле не втрачає фокус — клавіатура не ховається
+                onPointerDown={(e) => e.preventDefault()}
                 onClick={addSubtaskDraft}
                 className="rounded-lg border border-line px-3 text-sm font-medium text-ink hover:bg-canvas"
               >
