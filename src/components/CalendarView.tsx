@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useCalendarZoom } from "@/hooks/useCalendarZoom";
 import { useRangeTasks } from "@/hooks/useRangeTasks";
-import { blockRect, dayHeight, initialScrollTop, overlapLanes, timeToMinutes } from "@/lib/calendarLayout";
+import { blockRect, dayHeight, initialScrollTop, minutesToTop, overlapLanes, timeToMinutes } from "@/lib/calendarLayout";
 import { rangeDates } from "@/lib/calendarRange";
 import { isToday } from "@/lib/date";
 import { CATEGORY_COLORS } from "@/lib/reminderPlan";
@@ -27,6 +27,11 @@ interface CalendarViewProps {
 }
 
 const HOURS = Array.from({ length: 24 }, (_, h) => h);
+
+function currentMinutes(): number {
+  const n = new Date();
+  return n.getHours() * 60 + n.getMinutes();
+}
 
 /** Відступ блока від країв колонки й від сусідніх блоків, px. */
 const GAP = 2;
@@ -103,6 +108,24 @@ export function CalendarView({
   const openedTask = opened ? (tasks[opened.date] ?? []).find((t) => t.id === opened.id) ?? null : null;
 
   const cols = `44px repeat(${dates.length}, minmax(0, 1fr))`;
+
+  // Поточний час для червоної лінії: раз на хвилину і при поверненні в застосунок.
+  const [nowMin, setNowMin] = useState(currentMinutes);
+  useEffect(() => {
+    const update = () => setNowMin(currentMinutes());
+    const timer = setInterval(update, 60_000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") update();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("tauri://resumed", update);
+    update();
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("tauri://resumed", update);
+    };
+  }, []);
 
   // Перехід до першої задачі: під час відкриття (монтування — і перемикання «Список» → «Календар»),
   // кнопкою «Сьогодні» і зі зміною діапазону. Свайп на сусідні дні, повернення з налаштувань,
@@ -222,6 +245,14 @@ export function CalendarView({
                       />
                     );
                   })}
+                  {isToday(d) && (
+                    <div
+                      className="pointer-events-none absolute right-0 left-0 z-10 h-0.5 -translate-y-1/2 bg-danger"
+                      style={{ top: minutesToTop(nowMin, hourHeight) }}
+                    >
+                      <span className="absolute -top-[3px] -left-1 h-2 w-2 rounded-full bg-danger" />
+                    </div>
+                  )}
                 </div>
               );
             })}
