@@ -11,7 +11,8 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
-    "@tauri-apps/api": "^2.1.1",
+    "@tauri-apps/api": "2.11",
+    "@tauri-apps/plugin-notification": "^2.8.1",
     "@tauri-apps/plugin-os": "^2.0.0",
     "date-fns": "^3.6.0",
     "react": "^18.3.1",

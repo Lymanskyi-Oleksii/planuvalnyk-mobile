@@ -84,6 +84,8 @@ export function useDayData(date: string) {
       category: Category;
       details?: string;
       subtasks?: string[];
+      remind?: boolean | null;
+      remindBeforeMin?: number | null;
     }) => {
       const { subtasks = [], ...rest } = input;
       const taskId = await db.createScheduledTask({ date, ...rest });
@@ -105,6 +107,8 @@ export function useDayData(date: string) {
         category: Category;
         details?: string;
         subtasks?: string[];
+        remind?: boolean | null;
+        remindBeforeMin?: number | null;
       }
     ) => {
       const { subtasks = [], ...rest } = input;

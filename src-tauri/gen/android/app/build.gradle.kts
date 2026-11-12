@@ -1,5 +1,12 @@
 import java.util.Properties
 
+val keystoreProperties = Properties().apply {
+    val keystoreFile = rootProject.file("keystore.properties")
+    if (keystoreFile.exists()) {
+        keystoreFile.inputStream().use { load(it) }
+    }
+}
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -16,6 +23,16 @@ val tauriProperties = Properties().apply {
 android {
     compileSdk = 36
     namespace = "com.planuvalnyk.app"
+
+    signingConfigs {
+        create("release") {
+            storeFile = file(keystoreProperties.getProperty("storeFile"))
+            storePassword = keystoreProperties.getProperty("storePassword")
+            keyAlias = keystoreProperties.getProperty("keyAlias")
+            keyPassword = keystoreProperties.getProperty("keyPassword")
+        }
+    }
+
     defaultConfig {
         manifestPlaceholders["usesCleartextTraffic"] = "false"
         applicationId = "com.planuvalnyk.app"
@@ -24,30 +41,39 @@ android {
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
     }
+
     buildTypes {
         getByName("debug") {
             manifestPlaceholders["usesCleartextTraffic"] = "true"
             isDebuggable = true
             isJniDebuggable = true
             isMinifyEnabled = false
-            packaging {                jniLibs.keepDebugSymbols.add("*/arm64-v8a/*.so")
+
+            packaging {
+                jniLibs.keepDebugSymbols.add("*/arm64-v8a/*.so")
                 jniLibs.keepDebugSymbols.add("*/armeabi-v7a/*.so")
                 jniLibs.keepDebugSymbols.add("*/x86/*.so")
                 jniLibs.keepDebugSymbols.add("*/x86_64/*.so")
             }
         }
+
         getByName("release") {
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
+
             proguardFiles(
                 *fileTree(".") { include("**/*.pro") }
                     .plus(getDefaultProguardFile("proguard-android-optimize.txt"))
-                    .toList().toTypedArray()
+                    .toList()
+                    .toTypedArray()
             )
         }
     }
+
     kotlinOptions {
         jvmTarget = "1.8"
     }
+
     buildFeatures {
         buildConfig = true
     }

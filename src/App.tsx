@@ -16,6 +16,9 @@ import { useWeekSummaries } from "./hooks/useWeekSummaries";
 import { addDays, toISODate } from "./lib/date";
 import { startOfWeekISO, weekDates } from "./lib/week";
 import { useHorizontalSwipe } from "./lib/useSwipe";
+import { rescheduleReminders } from "./lib/reminders";
+import { subscribeSettings } from "./lib/settings";
+import { SettingsScreen } from "./components/SettingsScreen";
 import type { ScheduledTask } from "./types";
 
 const TODAY = toISODate(new Date());
@@ -55,6 +58,7 @@ function PlannerApp() {
   const [activeDate, setActiveDate] = useState(TODAY);
   const [activeTab, setActiveTab] = useState<MobileTab>("day");
   const [modalOpen, setModalOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<ScheduledTask | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const bump = () => setRefreshKey((k) => k + 1);
@@ -94,6 +98,34 @@ function PlannerApp() {
 
   const weekSummaries = useWeekSummaries(weekViewAnchor, refreshKey, 3, 3);
 
+  // Локальні нагадування на найближчі дні: перепланувати при відкритті,
+  // після кожної зміни задач і коли застосунок повертається на передній план.
+  useEffect(() => {
+    void rescheduleReminders();
+  }, [refreshKey]);
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void rescheduleReminders();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
+
+  // Зміна налаштувань нагадувань: перепланувати з невеликою затримкою,
+  // щоб не робити це на кожен рух повзунка.
+  useEffect(() => {
+    let timer: number | undefined;
+    const unsubscribe = subscribeSettings(() => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => void rescheduleReminders(), 600);
+    });
+    return () => {
+      unsubscribe();
+      window.clearTimeout(timer);
+    };
+  }, []);
+
   // Свайп по контенту (день/задачі/нотатки) перемикає день.
   const daySwipe = useHorizontalSwipe(
     () => setActiveDate((d) => addDays(d, 1)),
@@ -117,6 +149,8 @@ function PlannerApp() {
     category: ScheduledTask["category"];
     details?: string;
     subtasks: string[];
+    remind: boolean | null;
+    remindBeforeMin: number | null;
   }) {
     if (editingTask) {
       await updateScheduledTask(editingTask.id, values);
@@ -150,7 +184,7 @@ function PlannerApp() {
 
   return (
     <div className="flex h-screen flex-col bg-canvas font-sans text-ink">
-      <TitleBar onLogout={handleLogout} />
+      <TitleBar onLogout={handleLogout} onOpenSettings={() => setSettingsOpen(true)} />
 
       <div className="sm:hidden">
         <WeekStrip
@@ -219,6 +253,8 @@ function PlannerApp() {
       </main>
 
       <MobileTabs active={activeTab} onChange={setActiveTab} />
+
+      <SettingsScreen open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
       <AddTaskModal
         open={modalOpen}

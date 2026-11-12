@@ -1,0 +1,1026 @@
+diff --git a/src/App.tsx b/src/App.tsx
+index f5ca042..e0efd4d 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -17,6 +17,8 @@ import { addDays, toISODate } from "./lib/date";
+ import { startOfWeekISO, weekDates } from "./lib/week";
+ import { useHorizontalSwipe } from "./lib/useSwipe";
+ import { rescheduleReminders } from "./lib/reminders";
++import { subscribeSettings } from "./lib/settings";
++import { SettingsScreen } from "./components/SettingsScreen";
+ import type { ScheduledTask } from "./types";
+ 
+ const TODAY = toISODate(new Date());
+@@ -56,6 +58,7 @@ function PlannerApp() {
+   const [activeDate, setActiveDate] = useState(TODAY);
+   const [activeTab, setActiveTab] = useState<MobileTab>("day");
+   const [modalOpen, setModalOpen] = useState(false);
++  const [settingsOpen, setSettingsOpen] = useState(false);
+   const [editingTask, setEditingTask] = useState<ScheduledTask | null>(null);
+   const [refreshKey, setRefreshKey] = useState(0);
+   const bump = () => setRefreshKey((k) => k + 1);
+@@ -109,6 +112,20 @@ function PlannerApp() {
+     return () => document.removeEventListener("visibilitychange", onVisible);
+   }, []);
+ 
++  // Зміна налаштувань нагадувань: перепланувати з невеликою затримкою,
++  // щоб не робити це на кожен рух повзунка.
++  useEffect(() => {
++    let timer: number | undefined;
++    const unsubscribe = subscribeSettings(() => {
++      window.clearTimeout(timer);
++      timer = window.setTimeout(() => void rescheduleReminders(), 600);
++    });
++    return () => {
++      unsubscribe();
++      window.clearTimeout(timer);
++    };
++  }, []);
++
+   // Свайп по контенту (день/задачі/нотатки) перемикає день.
+   const daySwipe = useHorizontalSwipe(
+     () => setActiveDate((d) => addDays(d, 1)),
+@@ -132,6 +149,8 @@ function PlannerApp() {
+     category: ScheduledTask["category"];
+     details?: string;
+     subtasks: string[];
++    remind: boolean | null;
++    remindBeforeMin: number | null;
+   }) {
+     if (editingTask) {
+       await updateScheduledTask(editingTask.id, values);
+@@ -165,7 +184,7 @@ function PlannerApp() {
+ 
+   return (
+     <div className="flex h-screen flex-col bg-canvas font-sans text-ink">
+-      <TitleBar onLogout={handleLogout} />
++      <TitleBar onLogout={handleLogout} onOpenSettings={() => setSettingsOpen(true)} />
+ 
+       <div className="sm:hidden">
+         <WeekStrip
+@@ -235,6 +254,8 @@ function PlannerApp() {
+ 
+       <MobileTabs active={activeTab} onChange={setActiveTab} />
+ 
++      <SettingsScreen open={settingsOpen} onClose={() => setSettingsOpen(false)} />
++
+       <AddTaskModal
+         open={modalOpen}
+         onClose={() => setModalOpen(false)}
+diff --git a/src/components/AddTaskModal.tsx b/src/components/AddTaskModal.tsx
+index de09d42..4f8d46e 100644
+--- a/src/components/AddTaskModal.tsx
++++ b/src/components/AddTaskModal.tsx
+@@ -1,5 +1,7 @@
+ import { useEffect, useState } from "react";
+ import { Checkbox } from "./Checkbox";
++import { Toggle } from "./Toggle";
++import { leadLabel, loadSettings } from "@/lib/settings";
+ import { CATEGORY_LABELS, type Category, type ScheduledTask } from "@/types";
+ 
+ export interface TaskFormValues {
+@@ -9,6 +11,8 @@ export interface TaskFormValues {
+   category: Category;
+   details?: string;
+   subtasks: string[];
++  remind: boolean | null; // null = за загальними налаштуваннями
++  remindBeforeMin: number | null; // null = загальне значення
+ }
+ 
+ interface AddTaskModalProps {
+@@ -52,6 +56,9 @@ export function AddTaskModal({ open, onClose, onSave, editingTask, existingTasks
+   const [details, setDetails] = useState("");
+   const [subtasks, setSubtasks] = useState<string[]>([]);
+   const [subtaskDraft, setSubtaskDraft] = useState("");
++  // null = користувач нічого не міняв, діють загальні налаштування
++  const [remindOverride, setRemindOverride] = useState<boolean | null>(null);
++  const [leadOverride, setLeadOverride] = useState<number | null>(null);
+ 
+   useEffect(() => {
+     if (!open) return;
+@@ -62,6 +69,8 @@ export function AddTaskModal({ open, onClose, onSave, editingTask, existingTasks
+       setCategory(editingTask.category);
+       setDetails(editingTask.details ?? "");
+       setSubtasks(editingTask.subtasks.map((s) => s.title));
++      setRemindOverride(editingTask.remind);
++      setLeadOverride(editingTask.remindBeforeMin);
+     } else {
+       setTitle("");
+       setStartTime("09:00");
+@@ -69,12 +78,19 @@ export function AddTaskModal({ open, onClose, onSave, editingTask, existingTasks
+       setCategory("other");
+       setDetails("");
+       setSubtasks([]);
++      setRemindOverride(null);
++      setLeadOverride(null);
+     }
+     setSubtaskDraft("");
+   }, [open, editingTask]);
+ 
+   if (!open) return null;
+ 
++  const settings = loadSettings();
++  const defaultRemind = settings.enabled && settings.categories.includes(category);
++  const remindOn = remindOverride ?? defaultRemind;
++  const lead = leadOverride ?? settings.leadMinutes;
++
+   const overlap = findOverlap(startTime, endTime, existingTasks, editingTask?.id);
+   const invalidRange = toMinutes(endTime) <= toMinutes(startTime);
+ 
+@@ -98,6 +114,8 @@ export function AddTaskModal({ open, onClose, onSave, editingTask, existingTasks
+       category,
+       details: details.trim() || undefined,
+       subtasks,
++      remind: remindOverride,
++      remindBeforeMin: leadOverride,
+     });
+     onClose();
+   }
+@@ -187,6 +205,49 @@ export function AddTaskModal({ open, onClose, onSave, editingTask, existingTasks
+             </div>
+           </div>
+ 
++          <div className="rounded-lg border border-line px-3 py-1">
++            <Toggle
++              checked={remindOn}
++              onChange={setRemindOverride}
++              label="Нагадати про цю задачу"
++              description={
++                settings.enabled
++                  ? remindOverride === null
++                    ? "Зараз як у налаштуваннях для цієї категорії"
++                    : undefined
++                  : "Нагадування вимкнені в налаштуваннях застосунку"
++              }
++              disabled={!settings.enabled}
++            />
++            {remindOn && settings.enabled && (
++              <div className="border-t border-line py-2">
++                <div className="flex items-baseline justify-between">
++                  <span className="text-xs font-medium text-muted">Попередити</span>
++                  <span className="text-sm font-semibold text-accent">{leadLabel(lead)}</span>
++                </div>
++                <input
++                  type="range"
++                  min={0}
++                  max={120}
++                  step={5}
++                  value={lead}
++                  onChange={(e) => setLeadOverride(Number(e.target.value))}
++                  className="mt-1 w-full accent-accent"
++                  aria-label="За скільки хвилин попередити"
++                />
++                {leadOverride !== null && (
++                  <button
++                    type="button"
++                    onClick={() => setLeadOverride(null)}
++                    className="text-xs font-medium text-muted underline"
++                  >
++                    Як у налаштуваннях ({leadLabel(settings.leadMinutes)})
++                  </button>
++                )}
++              </div>
++            )}
++          </div>
++
+           <div>
+             <label className="mb-1 block text-xs font-medium text-muted">
+               Підзадачі <span className="font-normal">(необов'язково)</span>
+diff --git a/src/components/SettingsScreen.tsx b/src/components/SettingsScreen.tsx
+new file mode 100644
+index 0000000..17c4d22
+--- /dev/null
++++ b/src/components/SettingsScreen.tsx
+@@ -0,0 +1,286 @@
++import { useEffect, useState } from "react";
++import { supabase } from "@/lib/supabaseClient";
++import { CATEGORY_LABELS, type Category } from "@/types";
++import {
++  DEFAULT_SETTINGS,
++  leadLabel,
++  loadSettings,
++  saveSettings,
++  type ReminderSettings,
++} from "@/lib/settings";
++import {
++  getNotificationPermission,
++  requestNotificationPermission,
++  sendTestNotification,
++} from "@/lib/reminders";
++import { Toggle } from "./Toggle";
++
++interface SettingsScreenProps {
++  open: boolean;
++  onClose: () => void;
++}
++
++const CATEGORY_OPTIONS = Object.entries(CATEGORY_LABELS) as [Category, string][];
++const LEAD_PRESETS = [0, 5, 15, 30, 60];
++const MIN_PASSWORD = 6;
++
++function Section({ title, children }: { title: string; children: React.ReactNode }) {
++  return (
++    <section className="rounded-xl2 border border-line bg-panel p-4 shadow-card">
++      <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">{title}</h2>
++      {children}
++    </section>
++  );
++}
++
++export function SettingsScreen({ open, onClose }: SettingsScreenProps) {
++  const [settings, setSettings] = useState<ReminderSettings>(() => loadSettings());
++  const [permission, setPermission] = useState<boolean | null>(null);
++  const [testMsg, setTestMsg] = useState<string | null>(null);
++
++  const [email, setEmail] = useState<string>("");
++  const [password, setPassword] = useState("");
++  const [repeat, setRepeat] = useState("");
++  const [pwBusy, setPwBusy] = useState(false);
++  const [pwError, setPwError] = useState<string | null>(null);
++  const [pwOk, setPwOk] = useState(false);
++
++  useEffect(() => {
++    if (!open) return;
++    setSettings(loadSettings());
++    setTestMsg(null);
++    setPwError(null);
++    setPwOk(false);
++    setPassword("");
++    setRepeat("");
++    getNotificationPermission().then(setPermission);
++    supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? ""));
++  }, [open]);
++
++  if (!open) return null;
++
++  function update(patch: Partial<ReminderSettings>) {
++    const next = { ...settings, ...patch };
++    setSettings(next);
++    saveSettings(next);
++  }
++
++  function toggleCategory(c: Category) {
++    const has = settings.categories.includes(c);
++    update({ categories: has ? settings.categories.filter((x) => x !== c) : [...settings.categories, c] });
++  }
++
++  async function handleAllow() {
++    setPermission(await requestNotificationPermission());
++  }
++
++  async function handleTest() {
++    setTestMsg(null);
++    const ok = await sendTestNotification();
++    setPermission(await getNotificationPermission());
++    setTestMsg(
++      ok
++        ? "Готово: сповіщення прийде приблизно через 10 секунд. Можна згорнути застосунок."
++        : "Не вдалося. Перевірте, що сповіщення дозволені для застосунку в налаштуваннях телефону."
++    );
++  }
++
++  async function handleChangePassword(e: React.FormEvent) {
++    e.preventDefault();
++    setPwError(null);
++    setPwOk(false);
++    if (password.length < MIN_PASSWORD) {
++      setPwError(`Пароль має містити не менше ${MIN_PASSWORD} символів.`);
++      return;
++    }
++    if (password !== repeat) {
++      setPwError("Паролі не збігаються.");
++      return;
++    }
++    setPwBusy(true);
++    try {
++      const { error } = await supabase.auth.updateUser({ password });
++      if (error) throw error;
++      setPwOk(true);
++      setPassword("");
++      setRepeat("");
++    } catch (err: any) {
++      setPwError(err.message ?? "Не вдалося змінити пароль. Спробуйте ще раз.");
++    } finally {
++      setPwBusy(false);
++    }
++  }
++
++  const inputCls =
++    "w-full rounded-lg border border-line px-3 py-2 text-sm text-ink outline-none focus:border-accent";
++
++  return (
++    <div className="fixed inset-0 z-50 flex flex-col bg-canvas font-sans text-ink">
++      <header
++        style={{ paddingTop: "env(safe-area-inset-top)" }}
++        className="flex min-h-11 shrink-0 items-center gap-2 border-b border-line bg-panel px-3"
++      >
++        <button
++          onClick={onClose}
++          className="flex h-9 w-9 items-center justify-center rounded-lg text-muted hover:bg-canvas"
++          aria-label="Назад"
++        >
++          <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none">
++            <path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
++          </svg>
++        </button>
++        <h1 className="text-sm font-semibold">Налаштування</h1>
++      </header>
++
++      <div className="flex-1 space-y-4 overflow-y-auto p-4 pb-10">
++        <Section title="Нагадування">
++          <Toggle
++            checked={settings.enabled}
++            onChange={(v) => update({ enabled: v })}
++            label="Нагадування про задачі"
++            description="Головний вимикач. Вимкнено: жодних сповіщень."
++          />
++
++          <div className={settings.enabled ? "" : "pointer-events-none opacity-40"}>
++            <div className="mt-3 border-t border-line pt-3">
++              <div className="flex items-baseline justify-between">
++                <span className="text-sm font-medium">Попереджати</span>
++                <span className="text-sm font-semibold text-accent">{leadLabel(settings.leadMinutes)}</span>
++              </div>
++              <input
++                type="range"
++                min={0}
++                max={120}
++                step={5}
++                value={settings.leadMinutes}
++                onChange={(e) => update({ leadMinutes: Number(e.target.value) })}
++                className="mt-2 w-full accent-accent"
++                aria-label="За скільки хвилин попереджати"
++              />
++              <div className="mt-1 flex flex-wrap gap-2">
++                {LEAD_PRESETS.map((m) => (
++                  <button
++                    key={m}
++                    onClick={() => update({ leadMinutes: m })}
++                    className={`rounded-lg border px-3 py-1 text-xs font-medium transition-colors ${
++                      settings.leadMinutes === m
++                        ? "border-accent bg-accent-soft text-accent"
++                        : "border-line text-muted hover:border-accent/40"
++                    }`}
++                  >
++                    {m === 0 ? "На початку" : m === 60 ? "1 год" : `${m} хв`}
++                  </button>
++                ))}
++              </div>
++              <p className="mt-2 text-xs text-muted">
++                Діє для всіх задач, у яких немає свого значення. У самій задачі його можна змінити.
++              </p>
++            </div>
++
++            <div className="mt-4 border-t border-line pt-3">
++              <span className="text-sm font-medium">Для яких категорій</span>
++              <p className="mb-2 text-xs text-muted">
++                Задачі інших категорій не нагадують, поки ви не ввімкнете нагадування в самій задачі.
++              </p>
++              <div className="flex flex-wrap gap-2">
++                {CATEGORY_OPTIONS.map(([value, label]) => (
++                  <button
++                    key={value}
++                    onClick={() => toggleCategory(value)}
++                    aria-pressed={settings.categories.includes(value)}
++                    className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
++                      settings.categories.includes(value)
++                        ? "border-accent bg-accent-soft text-accent"
++                        : "border-line text-muted hover:border-accent/40"
++                    }`}
++                  >
++                    {label}
++                  </button>
++                ))}
++              </div>
++            </div>
++
++            <div className="mt-4 border-t border-line pt-1">
++              <Toggle
++                checked={settings.snack}
++                onChange={(v) => update({ snack: v })}
++                label="Перекус перед тренуванням"
++                description="За годину до вечірніх занять категорії «Спорт»."
++              />
++              <Toggle
++                checked={settings.afterWorkoutPulse}
++                onChange={(v) => update({ afterWorkoutPulse: v })}
++                label="Пульс після тренування"
++                description="Через 3 хв після заняття: нагадування виміряти пульс."
++              />
++            </div>
++          </div>
++
++          <div className="mt-4 space-y-2 border-t border-line pt-3">
++            {permission === null && (
++              <p className="text-xs text-muted">
++                Сповіщення працюють лише в застосунку на телефоні, тут їх перевірити не можна.
++              </p>
++            )}
++            {permission === false && (
++              <div className="rounded-lg bg-red-50 p-3 text-xs text-red-700">
++                Сповіщення для застосунку вимкнені.
++                <button onClick={handleAllow} className="ml-2 font-semibold underline">
++                  Дозволити
++                </button>
++              </div>
++            )}
++            {permission === true && <p className="text-xs font-medium text-green-700">Сповіщення дозволені.</p>}
++
++            <button
++              onClick={handleTest}
++              className="w-full rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink hover:bg-canvas"
++            >
++              Надіслати тестове сповіщення
++            </button>
++            {testMsg && <p className="text-xs text-muted">{testMsg}</p>}
++
++            <button
++              onClick={() => update({ ...DEFAULT_SETTINGS })}
++              className="text-xs font-medium text-muted underline"
++            >
++              Скинути до стандартних
++            </button>
++          </div>
++        </Section>
++
++        <Section title="Акаунт">
++          {email && <p className="mb-3 text-sm text-muted">Ви увійшли як {email}</p>}
++          <form onSubmit={handleChangePassword} className="space-y-2">
++            <label className="block text-xs font-medium text-muted">Змінити пароль</label>
++            <input
++              type="password"
++              autoComplete="new-password"
++              value={password}
++              onChange={(e) => setPassword(e.target.value)}
++              placeholder="Новий пароль"
++              className={inputCls}
++            />
++            <input
++              type="password"
++              autoComplete="new-password"
++              value={repeat}
++              onChange={(e) => setRepeat(e.target.value)}
++              placeholder="Повторіть новий пароль"
++              className={inputCls}
++            />
++            {pwError && <p className="text-xs font-medium text-red-600">{pwError}</p>}
++            {pwOk && <p className="text-xs font-medium text-green-700">Пароль змінено.</p>}
++            <button
++              type="submit"
++              disabled={pwBusy || !password || !repeat}
++              className="w-full rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent/90 disabled:opacity-40"
++            >
++              {pwBusy ? "Зберігаємо..." : "Змінити пароль"}
++            </button>
++          </form>
++        </Section>
++      </div>
++    </div>
++  );
++}
+diff --git a/src/components/TitleBar.tsx b/src/components/TitleBar.tsx
+index f748388..cd6fbf7 100644
+--- a/src/components/TitleBar.tsx
++++ b/src/components/TitleBar.tsx
+@@ -34,7 +34,13 @@ async function closeWindow() {
+   await w?.close();
+ }
+ 
+-export function TitleBar({ onLogout }: { onLogout?: () => void }) {
++export function TitleBar({
++  onLogout,
++  onOpenSettings,
++}: {
++  onLogout?: () => void;
++  onOpenSettings?: () => void;
++}) {
+   const [isMobile, setIsMobile] = useState(false);
+ 
+   useEffect(() => {
+@@ -59,6 +65,19 @@ export function TitleBar({ onLogout }: { onLogout?: () => void }) {
+       </div>
+ 
+       <div className="flex items-center gap-1">
++        {onOpenSettings && (
++          <button
++            onClick={onOpenSettings}
++            className="flex h-8 w-8 items-center justify-center rounded text-muted hover:bg-canvas hover:text-ink"
++            aria-label="Налаштування"
++          >
++            <svg viewBox="0 0 20 20" className="h-[18px] w-[18px]" fill="none">
++              <path d="M3 6h8M15 6h2M3 14h2M9 14h8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
++              <circle cx="13" cy="6" r="2" stroke="currentColor" strokeWidth="1.6" />
++              <circle cx="7" cy="14" r="2" stroke="currentColor" strokeWidth="1.6" />
++            </svg>
++          </button>
++        )}
+         {onLogout && (
+           <button
+             onClick={onLogout}
+diff --git a/src/components/Toggle.tsx b/src/components/Toggle.tsx
+new file mode 100644
+index 0000000..426aa1f
+--- /dev/null
++++ b/src/components/Toggle.tsx
+@@ -0,0 +1,37 @@
++interface ToggleProps {
++  checked: boolean;
++  onChange: (checked: boolean) => void;
++  label: string;
++  description?: string;
++  disabled?: boolean;
++}
++
++// Перемикач «увімк/вимк» з підписом; весь рядок натискається, зручно пальцем.
++export function Toggle({ checked, onChange, label, description, disabled }: ToggleProps) {
++  return (
++    <button
++      type="button"
++      role="switch"
++      aria-checked={checked}
++      disabled={disabled}
++      onClick={() => onChange(!checked)}
++      className="flex w-full items-center justify-between gap-3 py-2 text-left disabled:opacity-40"
++    >
++      <span className="min-w-0">
++        <span className="block text-sm font-medium text-ink">{label}</span>
++        {description && <span className="mt-0.5 block text-xs text-muted">{description}</span>}
++      </span>
++      <span
++        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
++          checked ? "bg-accent" : "bg-line"
++        }`}
++      >
++        <span
++          className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
++            checked ? "left-[22px]" : "left-0.5"
++          }`}
++        />
++      </span>
++    </button>
++  );
++}
+diff --git a/src/db/database.ts b/src/db/database.ts
+index d2a068a..d455be5 100644
+--- a/src/db/database.ts
++++ b/src/db/database.ts
+@@ -24,9 +24,15 @@ function mapScheduledTask(row: any): ScheduledTask {
+     done: row.done,
+     sortOrder: row.sort_order,
+     subtasks: (row.subtasks ?? []).map(mapSubtask),
++    remind: row.remind ?? null,
++    remindBeforeMin: row.remind_before_min ?? null,
+   };
+ }
+ 
++function isMissingRemindColumn(error: { message?: string } | null): boolean {
++  return /remind/i.test(error?.message ?? "");
++}
++
+ // ---------- Заплановані задачі (Тип 1) ----------
+ 
+ export async function getScheduledTasks(date: string): Promise<ScheduledTask[]> {
+@@ -49,23 +55,31 @@ export async function createScheduledTask(input: {
+   title: string;
+   category: Category;
+   details?: string | null;
++  remind?: boolean | null;
++  remindBeforeMin?: number | null;
+ }): Promise<string> {
+   const userId = requireUserId();
+-  const { data, error } = await supabase
+-    .from("scheduled_tasks")
+-    .insert({
+-      user_id: userId,
+-      date: input.date,
+-      start_time: input.startTime,
+-      end_time: input.endTime,
+-      title: input.title,
+-      category: input.category,
+-      details: input.details ?? null,
+-    })
+-    .select("id")
+-    .single();
+-  if (error) throw error;
+-  return data.id as string;
++  const base = {
++    user_id: userId,
++    date: input.date,
++    start_time: input.startTime,
++    end_time: input.endTime,
++    title: input.title,
++    category: input.category,
++    details: input.details ?? null,
++  };
++  // Поля нагадування надсилаємо лише коли вони задані. Якщо міграцію
++  // migration_reminders.sql ще не запущено, зберігаємо задачу без них.
++  const withRemind: Record<string, unknown> = { ...base };
++  if (input.remind != null) withRemind.remind = input.remind;
++  if (input.remindBeforeMin != null) withRemind.remind_before_min = input.remindBeforeMin;
++
++  let res = await supabase.from("scheduled_tasks").insert(withRemind).select("id").single();
++  if (res.error && isMissingRemindColumn(res.error)) {
++    res = await supabase.from("scheduled_tasks").insert(base).select("id").single();
++  }
++  if (res.error) throw res.error;
++  return res.data!.id as string;
+ }
+ 
+ export async function toggleScheduledTask(id: string, done: boolean): Promise<void> {
+@@ -82,18 +96,28 @@ export async function updateScheduledTask(
+     category: Category;
+     details?: string | null;
+     subtasks: string[];
++    remind?: boolean | null;
++    remindBeforeMin?: number | null;
+   }
+ ): Promise<void> {
+-  const { error } = await supabase
++  const base = {
++    start_time: input.startTime,
++    end_time: input.endTime,
++    title: input.title,
++    category: input.category,
++    details: input.details ?? null,
++  };
++  let { error } = await supabase
+     .from("scheduled_tasks")
+     .update({
+-      start_time: input.startTime,
+-      end_time: input.endTime,
+-      title: input.title,
+-      category: input.category,
+-      details: input.details ?? null,
++      ...base,
++      remind: input.remind ?? null,
++      remind_before_min: input.remindBeforeMin ?? null,
+     })
+     .eq("id", id);
++  if (error && isMissingRemindColumn(error)) {
++    ({ error } = await supabase.from("scheduled_tasks").update(base).eq("id", id));
++  }
+   if (error) throw error;
+ 
+   // Найпростіший надійний спосіб синхронізувати підзадачі — перестворити їх
+diff --git a/src/hooks/useDayData.ts b/src/hooks/useDayData.ts
+index e30a4f6..ab6fdd9 100644
+--- a/src/hooks/useDayData.ts
++++ b/src/hooks/useDayData.ts
+@@ -84,6 +84,8 @@ export function useDayData(date: string) {
+       category: Category;
+       details?: string;
+       subtasks?: string[];
++      remind?: boolean | null;
++      remindBeforeMin?: number | null;
+     }) => {
+       const { subtasks = [], ...rest } = input;
+       const taskId = await db.createScheduledTask({ date, ...rest });
+@@ -105,6 +107,8 @@ export function useDayData(date: string) {
+         category: Category;
+         details?: string;
+         subtasks?: string[];
++        remind?: boolean | null;
++        remindBeforeMin?: number | null;
+       }
+     ) => {
+       const { subtasks = [], ...rest } = input;
+diff --git a/src/lib/reminders.ts b/src/lib/reminders.ts
+index 9349687..f38c205 100644
+--- a/src/lib/reminders.ts
++++ b/src/lib/reminders.ts
+@@ -11,20 +11,20 @@ import { platform } from "@tauri-apps/plugin-os";
+ import { supabase } from "./supabaseClient";
+ import { requireUserId } from "./session";
+ import { addDays, fromISODate, toISODate } from "./date";
++import { loadSettings } from "./settings";
+ 
+ // Нагадування — локальні сповіщення телефону, заплановані наперед на найближчі
+ // дні. Вони спрацьовують і без інтернету та без відкритого застосунку.
+-// Перепланування відбувається при кожному відкритті застосунку й при зміні задач.
++// Перепланування відбувається при відкритті застосунку, зміні задач і налаштувань.
++//
++// Що саме нагадувати, вирішують налаштування (екран «Налаштування») і поля
++// самої задачі: remind (так/ні) та remind_before_min (за скільки хвилин).
++// Якщо поле задачі порожнє (null), береться загальне налаштування.
+ 
+ const CHANNEL_ID = "planner-reminders";
+ const DAYS_AHEAD = 7;
+ const MAX_NOTIFICATIONS = 60; // iOS тримає не більше 64 запланованих
+-
+-// Для яких категорій нагадувати. Решта (універ, робота...) не турбує.
+-const REMINDER_CATEGORIES = ["sport", "health"];
+-
+ const SNACK_BEFORE_MIN = 60; // перекус за годину до вечірнього тренування
+-const PRE_MIN = 15; // нагадування за 15 хв до початку
+ const POST_MIN = 3; // пульс через 3 хв після заняття
+ 
+ type Row = {
+@@ -36,6 +36,8 @@ type Row = {
+   category: string;
+   details: string | null;
+   done: boolean;
++  remind?: boolean | null;
++  remind_before_min?: number | null;
+ };
+ 
+ function at(date: string, time: string, shiftMin = 0): Date {
+@@ -68,37 +70,94 @@ async function isMobile(): Promise<boolean> {
+   }
+ }
+ 
+-async function ensurePermission(): Promise<boolean> {
+-  if (await isPermissionGranted()) return true;
+-  return (await requestPermission()) === "granted";
++/** true — дозволено, false — заборонено, null — на цьому пристрої сповіщення недоступні. */
++export async function getNotificationPermission(): Promise<boolean | null> {
++  try {
++    if (!(await isMobile())) return null;
++    return await isPermissionGranted();
++  } catch {
++    return null;
++  }
+ }
+ 
+-export async function rescheduleReminders(): Promise<void> {
++export async function requestNotificationPermission(): Promise<boolean> {
+   try {
+-    if (!(await isMobile())) return;
+-    if (!(await ensurePermission())) return;
++    if (!(await isMobile())) return false;
++    if (await isPermissionGranted()) return true;
++    return (await requestPermission()) === "granted";
++  } catch {
++    return false;
++  }
++}
+ 
+-    const userId = requireUserId();
+-    const today = toISODate(new Date());
+-    const last = addDays(today, DAYS_AHEAD);
++async function ensureChannel(): Promise<void> {
++  await createChannel({
++    id: CHANNEL_ID,
++    name: "Нагадування планувальника",
++    importance: Importance.High,
++    vibration: true,
++  });
++}
++
++/** Тестове сповіщення, яке прийде через 10 секунд. Повертає false, якщо не вдалося. */
++export async function sendTestNotification(): Promise<boolean> {
++  try {
++    if (!(await requestNotificationPermission())) return false;
++    await ensureChannel();
++    sendNotification({
++      id: notificationId("test"),
++      channelId: CHANNEL_ID,
++      title: "Тестове нагадування",
++      body: "Якщо ви це бачите, нагадування працюють.",
++      schedule: Schedule.at(new Date(Date.now() + 10_000), false, true),
++    });
++    return true;
++  } catch (err) {
++    // eslint-disable-next-line no-console
++    console.error("Тестове сповіщення не вдалося:", err);
++    return false;
++  }
++}
+ 
+-    const { data, error } = await supabase
++const FULL_COLUMNS = "id, date, start_time, end_time, title, category, details, done, remind, remind_before_min";
++const BASE_COLUMNS = "id, date, start_time, end_time, title, category, details, done";
++
++async function fetchRows(userId: string, from: string, to: string): Promise<Row[]> {
++  const run = (columns: string) =>
++    supabase
+       .from("scheduled_tasks")
+-      .select("id, date, start_time, end_time, title, category, details, done")
++      .select(columns)
+       .eq("user_id", userId)
+-      .gte("date", today)
+-      .lte("date", last)
+-      .in("category", REMINDER_CATEGORIES)
++      .gte("date", from)
++      .lte("date", to)
+       .order("date", { ascending: true })
+       .order("start_time", { ascending: true });
+-    if (error) throw error;
+ 
+-    await createChannel({
+-      id: CHANNEL_ID,
+-      name: "Нагадування планувальника",
+-      importance: Importance.High,
+-      vibration: true,
+-    });
++  let res = await run(FULL_COLUMNS);
++  if (res.error && /remind/i.test(res.error.message ?? "")) {
++    // міграцію migration_reminders.sql ще не запущено: працюємо без полів задачі
++    res = await run(BASE_COLUMNS);
++  }
++  if (res.error) throw res.error;
++  return (res.data ?? []) as unknown as Row[];
++}
++
++async function doReschedule(): Promise<void> {
++  try {
++    if (!(await isMobile())) return;
++
++    const settings = loadSettings();
++    if (!settings.enabled) {
++      await cancelAll(); // головний вимикач: прибираємо всі заплановані
++      return;
++    }
++    if (!(await requestNotificationPermission())) return;
++
++    const userId = requireUserId();
++    const today = toISODate(new Date());
++    const rows = await fetchRows(userId, today, addDays(today, DAYS_AHEAD));
++
++    await ensureChannel();
+ 
+     // Спершу прибираємо старі, потім ставимо актуальні: так видалені
+     // або перенесені задачі не залишають «привидів».
+@@ -107,15 +166,26 @@ export async function rescheduleReminders(): Promise<void> {
+     const now = Date.now();
+     const planned: { id: number; when: Date; title: string; body: string }[] = [];
+ 
+-    for (const t of (data ?? []) as Row[]) {
++    for (const t of rows) {
+       if (t.done) continue;
++
++      const wanted = t.remind ?? settings.categories.includes(t.category as never);
++      if (!wanted) continue;
++
++      const lead = t.remind_before_min ?? settings.leadMinutes;
+       const start = t.start_time.slice(0, 5);
+       const end = t.end_time.slice(0, 5);
+       const hint = firstLine(t.details);
+ 
++      planned.push({
++        id: notificationId(`${t.id}:pre`),
++        when: at(t.date, start, -lead),
++        title: lead <= 0 ? `Зараз: ${t.title}` : `Через ${lead} хв: ${t.title}`,
++        body: `${start}–${end}. ${hint}`.trim(),
++      });
++
+       if (t.category === "sport") {
+-        const startH = Number(start.slice(0, 2));
+-        if (startH >= 17) {
++        if (settings.snack && Number(start.slice(0, 2)) >= 17) {
+           planned.push({
+             id: notificationId(`${t.id}:snack`),
+             when: at(t.date, start, -SNACK_BEFORE_MIN),
+@@ -123,25 +193,14 @@ export async function rescheduleReminders(): Promise<void> {
+             body: "Яблуко або нежирний йогурт. Нічого важкого за 45–60 хв до заняття.",
+           });
+         }
+-        planned.push({
+-          id: notificationId(`${t.id}:pre`),
+-          when: at(t.date, start, -PRE_MIN),
+-          title: `Через ${PRE_MIN} хв: ${t.title}`,
+-          body: `${start}–${end}. ${hint}`.trim(),
+-        });
+-        planned.push({
+-          id: notificationId(`${t.id}:post`),
+-          when: at(t.date, end, POST_MIN),
+-          title: "Виміряйте пульс",
+-          body: "Через 3 хв після заняття пульс має бути нижче 100. Відмітьте виконане в застосунку.",
+-        });
+-      } else {
+-        planned.push({
+-          id: notificationId(`${t.id}:start`),
+-          when: at(t.date, start),
+-          title: t.title,
+-          body: hint || `${start}–${end}`,
+-        });
++        if (settings.afterWorkoutPulse) {
++          planned.push({
++            id: notificationId(`${t.id}:post`),
++            when: at(t.date, end, POST_MIN),
++            title: "Виміряйте пульс",
++            body: "Через 3 хв після заняття пульс має бути нижче 100. Відмітьте виконане в застосунку.",
++          });
++        }
+       }
+     }
+ 
+@@ -165,3 +224,12 @@ export async function rescheduleReminders(): Promise<void> {
+     console.error("Не вдалося запланувати нагадування:", err);
+   }
+ }
++
++// Виклики йдуть по черзі, щоб два перепланування одночасно не скасували
++// одне одного і не створили дублікатів.
++let queue: Promise<void> = Promise.resolve();
++
++export function rescheduleReminders(): Promise<void> {
++  queue = queue.then(doReschedule, doReschedule);
++  return queue;
++}
+diff --git a/src/lib/settings.ts b/src/lib/settings.ts
+new file mode 100644
+index 0000000..7b7591b
+--- /dev/null
++++ b/src/lib/settings.ts
+@@ -0,0 +1,68 @@
++import type { Category } from "@/types";
++
++// Загальні налаштування нагадувань. Зберігаються на самому пристрої
++// (localStorage): сповіщення належать конкретному телефону.
++
++export interface ReminderSettings {
++  enabled: boolean; // головний вимикач
++  leadMinutes: number; // за скільки хвилин попереджати за замовчуванням
++  categories: Category[]; // для яких категорій нагадувати за замовчуванням
++  snack: boolean; // перекус за годину до вечірнього тренування
++  afterWorkoutPulse: boolean; // нагадати виміряти пульс після тренування
++}
++
++export const DEFAULT_SETTINGS: ReminderSettings = {
++  enabled: true,
++  leadMinutes: 15,
++  categories: ["sport", "health"],
++  snack: true,
++  afterWorkoutPulse: true,
++};
++
++const KEY = "planner.reminderSettings.v1";
++const listeners = new Set<(s: ReminderSettings) => void>();
++
++export function loadSettings(): ReminderSettings {
++  try {
++    const raw = localStorage.getItem(KEY);
++    if (!raw) return { ...DEFAULT_SETTINGS };
++    const p = JSON.parse(raw);
++    return {
++      enabled: typeof p.enabled === "boolean" ? p.enabled : DEFAULT_SETTINGS.enabled,
++      leadMinutes:
++        typeof p.leadMinutes === "number" && p.leadMinutes >= 0 && p.leadMinutes <= 1440
++          ? p.leadMinutes
++          : DEFAULT_SETTINGS.leadMinutes,
++      categories: Array.isArray(p.categories) ? p.categories : [...DEFAULT_SETTINGS.categories],
++      snack: typeof p.snack === "boolean" ? p.snack : DEFAULT_SETTINGS.snack,
++      afterWorkoutPulse:
++        typeof p.afterWorkoutPulse === "boolean" ? p.afterWorkoutPulse : DEFAULT_SETTINGS.afterWorkoutPulse,
++    };
++  } catch {
++    return { ...DEFAULT_SETTINGS };
++  }
++}
++
++export function saveSettings(s: ReminderSettings): void {
++  try {
++    localStorage.setItem(KEY, JSON.stringify(s));
++  } catch {
++    // сховище недоступне: налаштування діятимуть до закриття застосунку
++  }
++  listeners.forEach((cb) => cb(s));
++}
++
++export function subscribeSettings(cb: (s: ReminderSettings) => void): () => void {
++  listeners.add(cb);
++  return () => {
++    listeners.delete(cb);
++  };
++}
++
++export function leadLabel(min: number): string {
++  if (min <= 0) return "у момент початку";
++  if (min < 60) return `за ${min} хв`;
++  const h = Math.floor(min / 60);
++  const m = min % 60;
++  return m === 0 ? `за ${h} год` : `за ${h} год ${m} хв`;
++}
+diff --git a/src/types.ts b/src/types.ts
+index d5de4cd..0646930 100644
+--- a/src/types.ts
++++ b/src/types.ts
+@@ -43,6 +43,8 @@ export interface ScheduledTask {
+   done: boolean;
+   sortOrder: number;
+   subtasks: Subtask[];
++  remind: boolean | null; // null = за загальними налаштуваннями
++  remindBeforeMin: number | null; // null = загальне значення
+ }
+ 
+ // Тип 2 — звичайна задача дня: дата, назва, checkbox. Без часу.
+diff --git a/supabase/migration_reminders.sql b/supabase/migration_reminders.sql
+new file mode 100644
+index 0000000..6d1c97a
+--- /dev/null
++++ b/supabase/migration_reminders.sql
+@@ -0,0 +1,14 @@
++-- Нагадування на рівні окремої задачі.
++-- Запустіть один раз: Supabase → SQL Editor → New query → вставити → Run.
++-- Безпечно запускати повторно. Нові таблиці не створюються, тому додаткові
++-- GRANT не потрібні: колонки успадковують права таблиці scheduled_tasks.
++
++alter table scheduled_tasks
++  add column if not exists remind boolean,              -- null = за загальними налаштуваннями
++  add column if not exists remind_before_min integer;   -- null = загальне значення "за скільки хвилин"
++
++alter table scheduled_tasks
++  drop constraint if exists scheduled_tasks_remind_before_min_check;
++alter table scheduled_tasks
++  add constraint scheduled_tasks_remind_before_min_check
++  check (remind_before_min is null or (remind_before_min >= 0 and remind_before_min <= 1440));

@@ -33,3 +33,4 @@ src-tauri/gen/android/.idea/
 # OS
 .DS_Store
 Thumbs.db
+src-tauri/gen/android/keystore.properties

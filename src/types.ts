@@ -43,6 +43,8 @@ export interface ScheduledTask {
   done: boolean;
   sortOrder: number;
   subtasks: Subtask[];
+  remind: boolean | null; // null = за загальними налаштуваннями
+  remindBeforeMin: number | null; // null = загальне значення
 }
 
 // Тип 2 — звичайна задача дня: дата, назва, checkbox. Без часу.

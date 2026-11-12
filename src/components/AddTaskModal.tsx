@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { Checkbox } from "./Checkbox";
+import { Toggle } from "./Toggle";
+import { leadLabel, loadSettings } from "@/lib/settings";
 import { CATEGORY_LABELS, type Category, type ScheduledTask } from "@/types";
 
 export interface TaskFormValues {
@@ -9,6 +11,8 @@ export interface TaskFormValues {
   category: Category;
   details?: string;
   subtasks: string[];
+  remind: boolean | null; // null = за загальними налаштуваннями
+  remindBeforeMin: number | null; // null = загальне значення
 }
 
 interface AddTaskModalProps {
@@ -52,6 +56,9 @@ export function AddTaskModal({ open, onClose, onSave, editingTask, existingTasks
   const [details, setDetails] = useState("");
   const [subtasks, setSubtasks] = useState<string[]>([]);
   const [subtaskDraft, setSubtaskDraft] = useState("");
+  // null = користувач нічого не міняв, діють загальні налаштування
+  const [remindOverride, setRemindOverride] = useState<boolean | null>(null);
+  const [leadOverride, setLeadOverride] = useState<number | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -62,6 +69,8 @@ export function AddTaskModal({ open, onClose, onSave, editingTask, existingTasks
       setCategory(editingTask.category);
       setDetails(editingTask.details ?? "");
       setSubtasks(editingTask.subtasks.map((s) => s.title));
+      setRemindOverride(editingTask.remind);
+      setLeadOverride(editingTask.remindBeforeMin);
     } else {
       setTitle("");
       setStartTime("09:00");
@@ -69,11 +78,18 @@ export function AddTaskModal({ open, onClose, onSave, editingTask, existingTasks
       setCategory("other");
       setDetails("");
       setSubtasks([]);
+      setRemindOverride(null);
+      setLeadOverride(null);
     }
     setSubtaskDraft("");
   }, [open, editingTask]);
 
   if (!open) return null;
+
+  const settings = loadSettings();
+  const defaultRemind = settings.enabled && settings.categories.includes(category);
+  const remindOn = remindOverride ?? defaultRemind;
+  const lead = leadOverride ?? settings.leadMinutes;
 
   const overlap = findOverlap(startTime, endTime, existingTasks, editingTask?.id);
   const invalidRange = toMinutes(endTime) <= toMinutes(startTime);
@@ -98,6 +114,8 @@ export function AddTaskModal({ open, onClose, onSave, editingTask, existingTasks
       category,
       details: details.trim() || undefined,
       subtasks,
+      remind: remindOverride,
+      remindBeforeMin: leadOverride,
     });
     onClose();
   }
@@ -185,6 +203,49 @@ export function AddTaskModal({ open, onClose, onSave, editingTask, existingTasks
                 </button>
               ))}
             </div>
+          </div>
+
+          <div className="rounded-lg border border-line px-3 py-1">
+            <Toggle
+              checked={remindOn}
+              onChange={setRemindOverride}
+              label="Нагадати про цю задачу"
+              description={
+                settings.enabled
+                  ? remindOverride === null
+                    ? "Зараз як у налаштуваннях для цієї категорії"
+                    : undefined
+                  : "Нагадування вимкнені в налаштуваннях застосунку"
+              }
+              disabled={!settings.enabled}
+            />
+            {remindOn && settings.enabled && (
+              <div className="border-t border-line py-2">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-xs font-medium text-muted">Попередити</span>
+                  <span className="text-sm font-semibold text-accent">{leadLabel(lead)}</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={120}
+                  step={5}
+                  value={lead}
+                  onChange={(e) => setLeadOverride(Number(e.target.value))}
+                  className="mt-1 w-full accent-accent"
+                  aria-label="За скільки хвилин попередити"
+                />
+                {leadOverride !== null && (
+                  <button
+                    type="button"
+                    onClick={() => setLeadOverride(null)}
+                    className="text-xs font-medium text-muted underline"
+                  >
+                    Як у налаштуваннях ({leadLabel(settings.leadMinutes)})
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           <div>

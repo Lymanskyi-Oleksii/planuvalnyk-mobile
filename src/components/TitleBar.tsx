@@ -34,7 +34,13 @@ async function closeWindow() {
   await w?.close();
 }
 
-export function TitleBar({ onLogout }: { onLogout?: () => void }) {
+export function TitleBar({
+  onLogout,
+  onOpenSettings,
+}: {
+  onLogout?: () => void;
+  onOpenSettings?: () => void;
+}) {
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -59,6 +65,19 @@ export function TitleBar({ onLogout }: { onLogout?: () => void }) {
       </div>
 
       <div className="flex items-center gap-1">
+        {onOpenSettings && (
+          <button
+            onClick={onOpenSettings}
+            className="flex h-8 w-8 items-center justify-center rounded text-muted hover:bg-canvas hover:text-ink"
+            aria-label="Налаштування"
+          >
+            <svg viewBox="0 0 20 20" className="h-[18px] w-[18px]" fill="none">
+              <path d="M3 6h8M15 6h2M3 14h2M9 14h8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              <circle cx="13" cy="6" r="2" stroke="currentColor" strokeWidth="1.6" />
+              <circle cx="7" cy="14" r="2" stroke="currentColor" strokeWidth="1.6" />
+            </svg>
+          </button>
+        )}
         {onLogout && (
           <button
             onClick={onLogout}
