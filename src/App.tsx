@@ -422,6 +422,10 @@ function PlannerApp() {
                   setActiveDate(d);
                   saveView({ range: 1 });
                 }}
+                onOpenDailyTasks={(d) => {
+                  setActiveDate(d);
+                  setActiveTab("tasks");
+                }}
               />
             ) : (
               <TodaySchedule
