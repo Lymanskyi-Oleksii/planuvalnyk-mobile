@@ -5,6 +5,9 @@ import { setCurrentUserId } from "./lib/session";
 import { TitleBar } from "./components/TitleBar";
 import { AuthScreen } from "./components/AuthScreen";
 import { TodaySchedule } from "./components/TodaySchedule";
+import { CalendarView } from "./components/CalendarView";
+import { useView } from "./hooks/useView";
+import { saveView } from "./lib/settings";
 import { NotesPanel } from "./components/NotesPanel";
 import { DailyTasksPanel } from "./components/DailyTasksPanel";
 import { WeekSidebar } from "./components/WeekSidebar";
@@ -88,6 +91,7 @@ function errorText(err: unknown): string {
 function PlannerApp() {
   const [activeDate, setActiveDate] = useState(TODAY);
   const [activeTab, setActiveTab] = useState<MobileTab>("day");
+  const view = useView();
   const [modalOpen, setModalOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<ScheduledTask | null>(null);
@@ -332,7 +336,12 @@ function PlannerApp() {
 
   return (
     <div className="flex h-screen flex-col bg-canvas font-sans text-ink">
-      <TitleBar onLogout={handleLogout} onOpenSettings={() => setSettingsOpen(true)} />
+      <TitleBar
+        onLogout={handleLogout}
+        onOpenSettings={() => setSettingsOpen(true)}
+        viewMode={view.mode}
+        onToggleView={() => saveView({ mode: view.mode === "calendar" ? "list" : "calendar" })}
+      />
 
       {offline && (
         <div role="status" className="border-b border-line bg-danger-soft px-4 py-1.5 text-center text-xs font-medium text-danger">
@@ -362,17 +371,21 @@ function PlannerApp() {
           {...daySwipe}
         >
           <div className={onlyOnTab("day")}>
-            <TodaySchedule
-              date={activeDate}
-              tasks={scheduledTasks}
-              onPrevDay={() => setActiveDate((d) => addDays(d, -1))}
-              onNextDay={() => setActiveDate((d) => addDays(d, 1))}
-              onToggleTask={handleToggleTask}
-              onToggleSubtask={handleToggleSubtask}
-              onAddTask={openCreateModal}
-              onEditTask={openEditModal}
-              onDeleteTask={handleDeleteTask}
-            />
+            {view.mode === "calendar" ? (
+              <CalendarView date={activeDate} range={view.range} />
+            ) : (
+              <TodaySchedule
+                date={activeDate}
+                tasks={scheduledTasks}
+                onPrevDay={() => setActiveDate((d) => addDays(d, -1))}
+                onNextDay={() => setActiveDate((d) => addDays(d, 1))}
+                onToggleTask={handleToggleTask}
+                onToggleSubtask={handleToggleSubtask}
+                onAddTask={openCreateModal}
+                onEditTask={openEditModal}
+                onDeleteTask={handleDeleteTask}
+              />
+            )}
           </div>
 
           <div

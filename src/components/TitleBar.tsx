@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { ViewMode } from "@/lib/settings";
 
 async function isMobilePlatform() {
   try {
@@ -37,9 +38,13 @@ async function closeWindow() {
 export function TitleBar({
   onLogout,
   onOpenSettings,
+  viewMode,
+  onToggleView,
 }: {
   onLogout?: () => void;
   onOpenSettings?: () => void;
+  viewMode?: ViewMode;
+  onToggleView?: () => void;
 }) {
   const [isMobile, setIsMobile] = useState(false);
 
@@ -65,6 +70,27 @@ export function TitleBar({
       </div>
 
       <div className="flex items-center gap-1">
+        {onToggleView && (
+          <button
+            onClick={onToggleView}
+            className="flex h-8 w-8 items-center justify-center rounded text-muted hover:bg-canvas hover:text-ink"
+            aria-label={viewMode === "calendar" ? "Показати списком" : "Показати календарем"}
+          >
+            {viewMode === "calendar" ? (
+              <svg viewBox="0 0 20 20" className="h-[18px] w-[18px]" fill="none">
+                <path d="M7 5h10M7 10h10M7 15h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                <circle cx="3.5" cy="5" r="1" fill="currentColor" />
+                <circle cx="3.5" cy="10" r="1" fill="currentColor" />
+                <circle cx="3.5" cy="15" r="1" fill="currentColor" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 20 20" className="h-[18px] w-[18px]" fill="none">
+                <rect x="3" y="3" width="14" height="14" rx="2" stroke="currentColor" strokeWidth="1.6" />
+                <path d="M3 8h14M8 8v9M12.5 8v9" stroke="currentColor" strokeWidth="1.6" />
+              </svg>
+            )}
+          </button>
+        )}
         {onOpenSettings && (
           <button
             onClick={onOpenSettings}

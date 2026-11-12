@@ -5,16 +5,20 @@ import {
   ALERT_MODE_LABELS,
   DEFAULT_SETTINGS,
   THEME_LABELS,
+  VIEW_LABELS,
   isValidTime,
   leadLabel,
   loadSettings,
   loadTheme,
   saveSettings,
   saveTheme,
+  saveView,
   type AlertMode,
   type ReminderSettings,
   type ThemeMode,
+  type ViewMode,
 } from "@/lib/settings";
+import { useView } from "@/hooks/useView";
 import {
   getNotificationPermission,
   getReminderStatus,
@@ -40,6 +44,7 @@ const CATEGORY_OPTIONS = Object.entries(CATEGORY_LABELS) as [Category, string][]
 const ALL_CATEGORIES = CATEGORY_OPTIONS.map(([value]) => value);
 const ALERT_MODES = Object.entries(ALERT_MODE_LABELS) as [AlertMode, string][];
 const THEME_MODES = Object.entries(THEME_LABELS) as [ThemeMode, string][];
+const VIEW_MODES = Object.entries(VIEW_LABELS) as [ViewMode, string][];
 const LEAD_PRESETS = [0, 5, 10, 15, 30, 60];
 const MIN_PASSWORD = 6;
 const UPCOMING_SHOWN = 5;
@@ -207,6 +212,7 @@ function UpcomingRow({ item }: { item: PlannedReminder }) {
 export function SettingsScreen({ open, onClose, onLogout }: SettingsScreenProps) {
   const [settings, setSettings] = useState<ReminderSettings>(() => loadSettings());
   const [theme, setTheme] = useState<ThemeMode>(() => loadTheme());
+  const viewSettings = useView();
   const [permission, setPermission] = useState<boolean | null>(null);
   const [status, setStatus] = useState<ReminderStatus>(() => getReminderStatus());
   const [testBusy, setTestBusy] = useState(false);
@@ -566,6 +572,22 @@ export function SettingsScreen({ open, onClose, onLogout }: SettingsScreenProps)
                   }}
                   className={`rounded-md px-2 py-2 text-xs font-medium transition-colors ${
                     theme === value ? "bg-panel text-accent shadow-card" : "text-muted"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="mb-2 mt-4 text-xs font-medium text-muted">Вигляд розкладу</p>
+            <div className="grid grid-cols-2 gap-1 rounded-lg bg-canvas p-1" role="radiogroup" aria-label="Вигляд розкладу">
+              {VIEW_MODES.map(([value, label]) => (
+                <button
+                  key={value}
+                  role="radio"
+                  aria-checked={viewSettings.mode === value}
+                  onClick={() => saveView({ mode: value })}
+                  className={`rounded-md px-2 py-2 text-xs font-medium transition-colors ${
+                    viewSettings.mode === value ? "bg-panel text-accent shadow-card" : "text-muted"
                   }`}
                 >
                   {label}

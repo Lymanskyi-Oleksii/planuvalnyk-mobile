@@ -162,6 +162,58 @@ export function subscribeTheme(cb: (t: ThemeMode) => void): () => void {
   };
 }
 
+// ── Режим розкладу ───────────────────────────────────────────────────────────
+// Список чи календар і діапазон календаря. Окремий ключ, як у теми:
+// «Скинути налаштування» його не чіпає.
+
+export type ViewMode = "list" | "calendar";
+export type CalendarRange = 1 | 3 | 7;
+
+export interface ViewSettings {
+  mode: ViewMode;
+  range: CalendarRange;
+}
+
+export const VIEW_LABELS: Record<ViewMode, string> = {
+  list: "Список",
+  calendar: "Календар",
+};
+
+const DEFAULT_VIEW: ViewSettings = { mode: "list", range: 7 };
+const VIEW_KEY = "planner.view.v1";
+const viewListeners = new Set<(v: ViewSettings) => void>();
+
+export function loadView(): ViewSettings {
+  try {
+    const raw = localStorage.getItem(VIEW_KEY);
+    if (!raw) return DEFAULT_VIEW;
+    const p = JSON.parse(raw) as Partial<ViewSettings>;
+    return {
+      mode: p.mode === "calendar" || p.mode === "list" ? p.mode : DEFAULT_VIEW.mode,
+      range: p.range === 1 || p.range === 3 || p.range === 7 ? p.range : DEFAULT_VIEW.range,
+    };
+  } catch {
+    return DEFAULT_VIEW;
+  }
+}
+
+export function saveView(patch: Partial<ViewSettings>): void {
+  const next = { ...loadView(), ...patch };
+  try {
+    localStorage.setItem(VIEW_KEY, JSON.stringify(next));
+  } catch {
+    // сховище недоступне: вибір діятиме до закриття застосунку
+  }
+  viewListeners.forEach((cb) => cb(next));
+}
+
+export function subscribeView(cb: (v: ViewSettings) => void): () => void {
+  viewListeners.add(cb);
+  return () => {
+    viewListeners.delete(cb);
+  };
+}
+
 function toMinutes(hhmm: string): number {
   const [h, m] = hhmm.split(":").map(Number);
   return h * 60 + m;
