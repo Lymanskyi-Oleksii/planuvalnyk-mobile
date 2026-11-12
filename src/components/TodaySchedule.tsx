@@ -1,6 +1,6 @@
 import { ScheduleRow } from "./ScheduleRow";
 import { formatDayName, formatLongDate, isToday } from "@/lib/date";
-import type { ScheduledTask } from "@/types";
+import type { ScheduledTask, SeriesScope } from "@/types";
 
 interface TodayScheduleProps {
   date: string;
@@ -11,7 +11,7 @@ interface TodayScheduleProps {
   onToggleSubtask: (id: string, done: boolean) => void;
   onAddTask: () => void;
   onEditTask: (task: ScheduledTask) => void;
-  onDeleteTask: (id: string) => void;
+  onDeleteTask: (task: ScheduledTask, scope: SeriesScope) => void;
 }
 
 export function TodaySchedule({

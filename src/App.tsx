@@ -10,7 +10,7 @@ import { DailyTasksPanel } from "./components/DailyTasksPanel";
 import { WeekSidebar } from "./components/WeekSidebar";
 import { WeekStrip } from "./components/WeekStrip";
 import { MobileTabs, type MobileTab } from "./components/MobileTabs";
-import { AddTaskModal } from "./components/AddTaskModal";
+import { AddTaskModal, type TaskFormValues } from "./components/AddTaskModal";
 import { useDayData } from "./hooks/useDayData";
 import { useWeekSummaries } from "./hooks/useWeekSummaries";
 import { addDays, toISODate } from "./lib/date";
@@ -29,7 +29,7 @@ import { subscribeSettings } from "./lib/settings";
 import { SettingsScreen } from "./components/SettingsScreen";
 import { Toaster } from "./components/Toaster";
 import { toast } from "./lib/toast";
-import type { ScheduledTask } from "./types";
+import type { ScheduledTask, SeriesScope } from "./types";
 
 const TODAY = toISODate(new Date());
 
@@ -224,21 +224,17 @@ function PlannerApp() {
     setModalOpen(true);
   }
 
-  async function handleSaveTask(values: {
-    startTime: string;
-    endTime: string;
-    title: string;
-    category: ScheduledTask["category"];
-    details?: string;
-    subtasks: string[];
-    remind: boolean | null;
-    remindBeforeMin: number | null;
-  }) {
+  async function handleSaveTask(values: TaskFormValues, scope: SeriesScope) {
+    const { repeatDates, skipIds, ...task } = values;
     try {
       if (editingTask) {
-        await updateScheduledTask(editingTask.id, values);
+        const series =
+          scope === "following" && editingTask.seriesId
+            ? { seriesId: editingTask.seriesId, fromDate: editingTask.date, skipIds }
+            : undefined;
+        await updateScheduledTask(editingTask.id, task, series);
       } else {
-        await addScheduledTask(values);
+        await addScheduledTask({ ...task, repeatDates });
       }
       bump();
     } catch (err) {
@@ -246,9 +242,9 @@ function PlannerApp() {
     }
   }
 
-  async function handleDeleteTask(id: string) {
+  async function handleDeleteTask(task: ScheduledTask, scope: SeriesScope) {
     try {
-      await deleteScheduledTask(id);
+      await deleteScheduledTask(task, scope);
       bump();
     } catch (err) {
       toast.error("Не вдалося видалити задачу", { message: errorText(err) });
@@ -365,6 +361,7 @@ function PlannerApp() {
         onSave={handleSaveTask}
         editingTask={editingTask}
         existingTasks={scheduledTasks}
+        date={activeDate}
       />
     </div>
   );

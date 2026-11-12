@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import { Checkbox } from "./Checkbox";
 import { Toggle } from "./Toggle";
 import { leadLabel, loadSettings } from "@/lib/settings";
-import { CATEGORY_LABELS, type Category, type ScheduledTask } from "@/types";
+import { addDays, fromISODate } from "@/lib/date";
+import { getSeriesTasksFrom, getTasksOnDates } from "@/db/database";
+import { CATEGORY_LABELS, type Category, type ScheduledTask, type SeriesScope } from "@/types";
 
 export interface TaskFormValues {
   startTime: string;
@@ -13,17 +15,49 @@ export interface TaskFormValues {
   subtasks: string[];
   remind: boolean | null; // null = за загальними налаштуваннями
   remindBeforeMin: number | null; // null = загальне значення
+  repeatDates: string[]; // нова задача: інші дні повтору, крім поточного (без накладок)
+  skipIds: string[]; // «цю й наступні»: копії з накладками, які не змінюємо
 }
 
 interface AddTaskModalProps {
   open: boolean;
   onClose: () => void;
-  onSave: (values: TaskFormValues) => void;
+  onSave: (values: TaskFormValues, scope: SeriesScope) => void;
   editingTask?: ScheduledTask | null;
   existingTasks: ScheduledTask[]; // задачі того ж дня, для перевірки накладок
+  date: string; // день, на який створюємо задачу
 }
 
 const CATEGORY_OPTIONS = Object.entries(CATEGORY_LABELS) as [Category, string][];
+
+// Дні тижня в порядку Пн–Нд; число — як у Date.getDay()
+const WEEKDAYS: [number, string][] = [
+  [1, "Пн"],
+  [2, "Вт"],
+  [3, "Ср"],
+  [4, "Чт"],
+  [5, "Пт"],
+  [6, "Сб"],
+  [0, "Нд"],
+];
+
+const MAX_REPEAT_COPIES = 200;
+
+// Дні повтору після date до until включно, лише позначені дні тижня
+function repeatDatesFor(date: string, until: string, weekdays: number[]): string[] {
+  const out: string[] = [];
+  if (weekdays.length === 0) return out;
+  for (let d = addDays(date, 1); d <= until && out.length < MAX_REPEAT_COPIES; d = addDays(d, 1)) {
+    if (weekdays.includes(fromISODate(d).getDay())) out.push(d);
+  }
+  return out;
+}
+
+// 24.11
+function shortDate(iso: string): string {
+  const [, m, d] = iso.split("-");
+  return `${d}.${m}`;
+}
 
 function toMinutes(time: string): number {
   const [h, m] = time.split(":").map(Number);
@@ -48,7 +82,7 @@ function findOverlap(
   return null;
 }
 
-export function AddTaskModal({ open, onClose, onSave, editingTask, existingTasks }: AddTaskModalProps) {
+export function AddTaskModal({ open, onClose, onSave, editingTask, existingTasks, date }: AddTaskModalProps) {
   const [title, setTitle] = useState("");
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("10:00");
@@ -59,6 +93,52 @@ export function AddTaskModal({ open, onClose, onSave, editingTask, existingTasks
   // null = користувач нічого не міняв, діють загальні налаштування
   const [remindOverride, setRemindOverride] = useState<boolean | null>(null);
   const [leadOverride, setLeadOverride] = useState<number | null>(null);
+  // Повтор (лише для нової задачі)
+  const [repeatOn, setRepeatOn] = useState(false);
+  const [repeatWeekdays, setRepeatWeekdays] = useState<number[]>([]);
+  const [repeatUntil, setRepeatUntil] = useState("");
+  // Задачі інших днів для перевірки накладок; null — ще не завантажено
+  const [otherTasks, setOtherTasks] = useState<ScheduledTask[] | null>(null);
+  // Наступні копії серії, яку редагуємо
+  const [seriesNext, setSeriesNext] = useState<ScheduledTask[] | null>(null);
+  const [checkError, setCheckError] = useState(false);
+
+  const newRepeatDates =
+    open && !editingTask && repeatOn ? repeatDatesFor(date, repeatUntil, repeatWeekdays) : [];
+  const repeatKey = newRepeatDates.join(",");
+
+  // Нова повторювана задача: задачі на дні повтору
+  useEffect(() => {
+    if (!repeatKey) return;
+    let cancelled = false;
+    setOtherTasks(null);
+    setCheckError(false);
+    getTasksOnDates(repeatKey.split(","))
+      .then((tasks) => !cancelled && setOtherTasks(tasks))
+      .catch(() => !cancelled && setCheckError(true));
+    return () => {
+      cancelled = true;
+    };
+  }, [repeatKey]);
+
+  // Редагування копії серії: наступні копії й задачі на їхні дні
+  useEffect(() => {
+    if (!open || !editingTask?.seriesId) return;
+    let cancelled = false;
+    setSeriesNext(null);
+    setOtherTasks(null);
+    setCheckError(false);
+    (async () => {
+      const next = await getSeriesTasksFrom(editingTask.seriesId!, addDays(editingTask.date, 1));
+      const others = await getTasksOnDates(next.map((t) => t.date));
+      if (cancelled) return;
+      setSeriesNext(next);
+      setOtherTasks(others);
+    })().catch(() => !cancelled && setCheckError(true));
+    return () => {
+      cancelled = true;
+    };
+  }, [open, editingTask]);
 
   useEffect(() => {
     if (!open) return;
@@ -82,7 +162,10 @@ export function AddTaskModal({ open, onClose, onSave, editingTask, existingTasks
       setLeadOverride(null);
     }
     setSubtaskDraft("");
-  }, [open, editingTask]);
+    setRepeatOn(false);
+    setRepeatWeekdays([fromISODate(date).getDay()]);
+    setRepeatUntil(addDays(date, 28));
+  }, [open, editingTask, date]);
 
   if (!open) return null;
 
@@ -93,6 +176,24 @@ export function AddTaskModal({ open, onClose, onSave, editingTask, existingTasks
 
   const overlap = findOverlap(startTime, endTime, existingTasks, editingTask?.id);
   const invalidRange = toMinutes(endTime) <= toMinutes(startTime);
+
+  // Дні серії, де новий час накладається на іншу задачу, — їх пропускаємо
+  const tasksOn = (d: string) => (otherTasks ?? []).filter((t) => t.date === d);
+  const repeatSkipped = invalidRange
+    ? []
+    : newRepeatDates.filter((d) => findOverlap(startTime, endTime, tasksOn(d)));
+  const seriesSkipped = invalidRange
+    ? []
+    : (seriesNext ?? []).filter((t) => findOverlap(startTime, endTime, tasksOn(t.date), t.id));
+  const isSeries = !!editingTask?.seriesId;
+  // Поки не перевірено накладки на інших днях, серію не зберігаємо
+  const repeatPending = !editingTask && repeatOn && (repeatWeekdays.length === 0 || (repeatKey !== "" && otherTasks === null));
+  const seriesPending = isSeries && (seriesNext === null || otherTasks === null);
+  const canSave = !!title.trim() && !invalidRange && !overlap && !repeatPending;
+
+  function toggleWeekday(day: number) {
+    setRepeatWeekdays((days) => (days.includes(day) ? days.filter((d) => d !== day) : [...days, day]));
+  }
 
   function addSubtaskDraft() {
     if (subtaskDraft.trim()) {
@@ -105,18 +206,24 @@ export function AddTaskModal({ open, onClose, onSave, editingTask, existingTasks
     setSubtasks((s) => s.filter((_, idx) => idx !== i));
   }
 
-  function handleSubmit() {
-    if (!title.trim() || invalidRange || overlap) return;
-    onSave({
-      startTime,
-      endTime,
-      title: title.trim(),
-      category,
-      details: details.trim() || undefined,
-      subtasks,
-      remind: remindOverride,
-      remindBeforeMin: leadOverride,
-    });
+  function handleSubmit(scope: SeriesScope = "one") {
+    if (!canSave) return;
+    if (scope === "following" && seriesPending) return;
+    onSave(
+      {
+        startTime,
+        endTime,
+        title: title.trim(),
+        category,
+        details: details.trim() || undefined,
+        subtasks,
+        remind: remindOverride,
+        remindBeforeMin: leadOverride,
+        repeatDates: newRepeatDates.filter((d) => !repeatSkipped.includes(d)),
+        skipIds: seriesSkipped.map((t) => t.id),
+      },
+      scope
+    );
     onClose();
   }
 
@@ -204,6 +311,71 @@ export function AddTaskModal({ open, onClose, onSave, editingTask, existingTasks
               ))}
             </div>
           </div>
+
+          {!editingTask && (
+            <div className="rounded-lg border border-line px-3 py-1">
+              <Toggle checked={repeatOn} onChange={setRepeatOn} label="Повторювати щотижня" />
+              {repeatOn && (
+                <div className="space-y-3 border-t border-line py-2">
+                  <div className="flex flex-wrap gap-1.5">
+                    {WEEKDAYS.map(([day, label]) => (
+                      <button
+                        key={day}
+                        type="button"
+                        onClick={() => toggleWeekday(day)}
+                        className={`h-8 w-9 rounded-lg border text-xs font-medium transition-colors ${
+                          repeatWeekdays.includes(day)
+                            ? "border-accent bg-accent-soft text-accent"
+                            : "border-line text-muted hover:border-accent/40"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-muted">До дати</label>
+                    <input
+                      type="date"
+                      value={repeatUntil}
+                      min={addDays(date, 1)}
+                      onChange={(e) => e.target.value && setRepeatUntil(e.target.value)}
+                      className="w-full rounded-lg border border-line px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+                    />
+                  </div>
+                  {repeatWeekdays.length === 0 ? (
+                    <p className="text-xs font-medium text-danger">Позначте хоча б один день тижня.</p>
+                  ) : checkError ? (
+                    <p className="text-xs font-medium text-danger">Не вдалося перевірити інші дні. Спробуйте ще раз.</p>
+                  ) : (
+                    <p className="text-xs text-muted">
+                      Ще {newRepeatDates.length - repeatSkipped.length} дн. до {shortDate(repeatUntil)}
+                      {repeatSkipped.length > 0 && (
+                        <span className="font-medium text-danger">
+                          {" "}
+                          · Пропущено через накладки: {repeatSkipped.map(shortDate).join(", ")}
+                        </span>
+                      )}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {isSeries && (
+            <p className="text-xs text-muted">
+              Задача повторюється. «Цю й наступні» змінить також{" "}
+              {seriesNext === null ? "…" : seriesNext.length - seriesSkipped.length} наступн. копій
+              {seriesSkipped.length > 0 && (
+                <span className="font-medium text-danger">
+                  {" "}
+                  · Без змін через накладки: {seriesSkipped.map((t) => shortDate(t.date)).join(", ")}
+                </span>
+              )}
+              {checkError && <span className="font-medium text-danger"> · Не вдалося перевірити інші дні.</span>}
+            </p>
+          )}
 
           <div className="rounded-lg border border-line px-3 py-1">
             <Toggle
@@ -316,13 +488,32 @@ export function AddTaskModal({ open, onClose, onSave, editingTask, existingTasks
           >
             Скасувати
           </button>
-          <button
-            onClick={handleSubmit}
-            disabled={!title.trim() || invalidRange || !!overlap}
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent/90 disabled:opacity-40"
-          >
-            {editingTask ? "Зберегти зміни" : "Додати задачу"}
-          </button>
+          {isSeries ? (
+            <>
+              <button
+                onClick={() => handleSubmit("one")}
+                disabled={!canSave}
+                className="rounded-lg border border-accent px-3 py-2 text-sm font-medium text-accent hover:bg-accent-soft disabled:opacity-40"
+              >
+                Лише цю
+              </button>
+              <button
+                onClick={() => handleSubmit("following")}
+                disabled={!canSave || seriesPending}
+                className="rounded-lg bg-accent px-3 py-2 text-sm font-medium text-white hover:bg-accent/90 disabled:opacity-40"
+              >
+                Цю й наступні
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => handleSubmit()}
+              disabled={!canSave}
+              className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent/90 disabled:opacity-40"
+            >
+              {editingTask ? "Зберегти зміни" : "Додати задачу"}
+            </button>
+          )}
         </footer>
       </div>
     </div>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import * as db from "@/db/database";
-import type { Category, DailyTask, DayNote, MultiDayNote, ScheduledTask } from "@/types";
+import type { Category, DailyTask, DayNote, MultiDayNote, ScheduledTask, SeriesScope } from "@/types";
 
 export function useDayData(date: string) {
   const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([]);
@@ -86,11 +86,16 @@ export function useDayData(date: string) {
       subtasks?: string[];
       remind?: boolean | null;
       remindBeforeMin?: number | null;
+      repeatDates?: string[]; // інші дні повторюваної задачі, крім поточного
     }) => {
-      const { subtasks = [], ...rest } = input;
-      const taskId = await db.createScheduledTask({ date, ...rest });
-      for (const title of subtasks) {
-        await db.addSubtask(taskId, title);
+      const { subtasks = [], repeatDates = [], ...rest } = input;
+      if (repeatDates.length > 0) {
+        await db.createScheduledTaskSeries({ ...rest, subtasks }, [date, ...repeatDates]);
+      } else {
+        const taskId = await db.createScheduledTask({ date, ...rest });
+        for (const title of subtasks) {
+          await db.addSubtask(taskId, title);
+        }
       }
       await reload();
     },
@@ -109,18 +114,28 @@ export function useDayData(date: string) {
         subtasks?: string[];
         remind?: boolean | null;
         remindBeforeMin?: number | null;
-      }
+      },
+      // Для «цієї й наступних»: серія, з якої дати, які копії не чіпати (накладки)
+      series?: { seriesId: string; fromDate: string; skipIds: string[] }
     ) => {
       const { subtasks = [], ...rest } = input;
-      await db.updateScheduledTask(id, { ...rest, subtasks });
+      if (series) {
+        await db.updateScheduledTaskSeries(series.seriesId, series.fromDate, { ...rest, subtasks }, series.skipIds);
+      } else {
+        await db.updateScheduledTask(id, { ...rest, subtasks });
+      }
       await reload();
     },
     [reload]
   );
 
-  const deleteScheduledTask = useCallback(async (id: string) => {
-    await db.deleteScheduledTask(id);
-    setScheduledTasks((prev) => prev.filter((t) => t.id !== id));
+  const deleteScheduledTask = useCallback(async (task: ScheduledTask, scope: SeriesScope = "one") => {
+    if (scope === "following" && task.seriesId) {
+      await db.deleteScheduledTaskSeries(task.seriesId, task.date);
+    } else {
+      await db.deleteScheduledTask(task.id);
+    }
+    setScheduledTasks((prev) => prev.filter((t) => t.id !== task.id));
   }, []);
 
   const saveNote = useCallback(

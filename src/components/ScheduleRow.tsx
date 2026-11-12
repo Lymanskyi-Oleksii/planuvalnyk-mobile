@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Checkbox } from "./Checkbox";
 import { CategoryBadge } from "./CategoryBadge";
-import type { ScheduledTask } from "@/types";
+import type { ScheduledTask, SeriesScope } from "@/types";
 
 const RAIL_COLORS: Record<string, string> = {
   study: "bg-category-study-fg",
@@ -32,7 +32,23 @@ interface ScheduleRowProps {
   onToggleTask: (id: string, done: boolean) => void;
   onToggleSubtask: (id: string, done: boolean) => void;
   onEdit: (task: ScheduledTask) => void;
-  onDelete: (id: string) => void;
+  onDelete: (task: ScheduledTask, scope: SeriesScope) => void;
+}
+
+// Значок повторюваної задачі біля часу
+function RepeatIcon() {
+  return (
+    <svg viewBox="0 0 16 16" className="ml-1 inline h-3.5 w-3.5 shrink-0 align-[-2px]" fill="none" aria-label="Повторюється щотижня">
+      <title>Повторюється щотижня</title>
+      <path
+        d="M3 7.5V6.5A2.5 2.5 0 0 1 5.5 4H12M10 2l2 2-2 2M13 8.5v1A2.5 2.5 0 0 1 10.5 12H4m2 2-2-2 2-2"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
 }
 
 export function ScheduleRow({ task, onToggleTask, onToggleSubtask, onEdit, onDelete }: ScheduleRowProps) {
@@ -75,8 +91,31 @@ export function ScheduleRow({ task, onToggleTask, onToggleSubtask, onEdit, onDel
           <path d="M11 2l3 3-8 8H3v-3l8-8Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
         </svg>
       </button>
+      {confirmingDelete && task.seriesId ? (
+        // Задача із серії: питаємо, видалити лише цю копію чи цю й наступні
+        <div
+          className="flex shrink-0 items-center gap-1"
+          onBlur={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setConfirmingDelete(false);
+          }}
+        >
+          <button
+            autoFocus
+            onClick={() => onDelete(task, "one")}
+            className="flex h-8 items-center rounded-lg bg-danger-soft px-2 text-xs font-medium text-danger sm:h-7"
+          >
+            Лише цю
+          </button>
+          <button
+            onClick={() => onDelete(task, "following")}
+            className="flex h-8 items-center rounded-lg bg-danger-soft px-2 text-xs font-medium text-danger sm:h-7"
+          >
+            І наступні
+          </button>
+        </div>
+      ) : (
       <button
-        onClick={() => (confirmingDelete ? onDelete(task.id) : setConfirmingDelete(true))}
+        onClick={() => (confirmingDelete ? onDelete(task, "one") : setConfirmingDelete(true))}
         onBlur={() => setConfirmingDelete(false)}
         className={`flex h-8 shrink-0 items-center justify-center rounded-lg px-2 text-xs font-medium transition-colors sm:h-7 ${
           confirmingDelete
@@ -93,6 +132,7 @@ export function ScheduleRow({ task, onToggleTask, onToggleSubtask, onEdit, onDel
           </svg>
         )}
       </button>
+      )}
     </>
   );
 
@@ -161,6 +201,7 @@ export function ScheduleRow({ task, onToggleTask, onToggleSubtask, onEdit, onDel
             <div className={`mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 ${task.done ? "opacity-70" : ""}`}>
               <span className={`text-xs font-medium transition-colors ${task.done ? doneText : "text-muted"}`}>
                 {task.startTime}–{task.endTime}
+                {task.seriesId && <RepeatIcon />}
               </span>
               <CategoryBadge category={task.category} muted={task.done} />
             </div>
@@ -183,6 +224,7 @@ export function ScheduleRow({ task, onToggleTask, onToggleSubtask, onEdit, onDel
         <div className={`relative flex items-center py-4 pl-4 pr-3 text-sm transition-colors ${task.done ? doneText : "text-ink"}`}>
           <span className={`absolute left-0 top-2 bottom-2 w-[3px] rounded-full transition-colors ${railClass}`} />
           {task.startTime}–{task.endTime}
+          {task.seriesId && <RepeatIcon />}
         </div>
 
         <div className={`flex flex-col justify-center gap-1.5 py-4 pr-4 ${task.done ? "opacity-70" : ""}`}>
