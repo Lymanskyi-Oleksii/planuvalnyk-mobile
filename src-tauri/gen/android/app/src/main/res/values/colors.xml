@@ -7,4 +7,11 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- Власний макет сповіщення-нагадування -->
+    <color name="reminder_bg">#FFFFFFFF</color>
+    <color name="reminder_text_primary">#FF0F172A</color>
+    <color name="reminder_text_secondary">#FF64748B</color>
+    <color name="reminder_button_bg">#FFF1F5F9</color>
+    <color name="reminder_button_text">#FF1E293B</color>
 </resources>

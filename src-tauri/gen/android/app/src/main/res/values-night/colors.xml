@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="reminder_bg">#FF1E293B</color>
+    <color name="reminder_text_primary">#FFF1F5F9</color>
+    <color name="reminder_text_secondary">#FF94A3B8</color>
+    <color name="reminder_button_bg">#FF334155</color>
+    <color name="reminder_button_text">#FFE2E8F0</color>
+</resources>

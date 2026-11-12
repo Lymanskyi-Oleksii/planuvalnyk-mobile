@@ -18,17 +18,17 @@ Android потрібен свій Kotlin-код. iOS і комп'ютер лиш
 назви API нижче — підказки, а не гарантія.
 
 ### Етап 0. Прибрати зайві картки
-- [ ] `src/App.tsx`: у `handleSaveTask` і `handleDeleteTask` видалити `toast.success`
+- [x] `src/App.tsx`: у `handleSaveTask` і `handleDeleteTask` видалити `toast.success`
       і `toast.info`, лишити тільки `toast.error`.
 
 ### Етап 1. Макет (тільки XML, без логіки)
-- [ ] `res/layout/notification_reminder_small.xml` — згорнутий вигляд, висота до 48dp:
+- [x] `res/layout/notification_reminder_small.xml` — згорнутий вигляд, висота до 48dp:
       кружок кольору категорії з емодзі, назва задачі жирним,
       рядок «Через 15 хв · 18:00–19:00».
-- [ ] `res/layout/notification_reminder_big.xml` — розгорнутий, до 256dp:
+- [x] `res/layout/notification_reminder_big.xml` — розгорнутий, до 256dp:
       те саме + деталі задачі (до 3 рядків) + кнопки «Виконано» і «Відкласти на 10 хв».
-- [ ] Кольори тексту й фону — у `res/values/colors.xml` і `res/values-night/colors.xml`.
-- [ ] Показати прев'ю обох макетів і дочекатися підтвердження.
+- [x] Кольори тексту й фону — у `res/values/colors.xml` і `res/values-night/colors.xml`.
+- [x] Показати прев'ю обох макетів і дочекатися підтвердження.
 
 Підказки: RemoteViews підтримує лише `LinearLayout`, `RelativeLayout`, `FrameLayout`,
 `TextView`, `ImageView`, `Button`. Без `ConstraintLayout` і власних View.
