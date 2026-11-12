@@ -10,7 +10,8 @@ import {
 } from "@tauri-apps/plugin-notification";
 import { invoke } from "@tauri-apps/api/core";
 import { platform } from "@tauri-apps/plugin-os";
-import { supabase } from "./supabaseClient";
+import type { Session } from "@supabase/supabase-js";
+import { supabase, url as supabaseUrl, anonKey as supabaseAnonKey } from "./supabaseClient";
 import { requireUserId } from "./session";
 import { addDays, toISODate } from "./date";
 import { loadSettings, type AlertMode } from "./settings";
@@ -221,6 +222,25 @@ export async function pendingDone(): Promise<string[]> {
   if (!isAndroid()) return [];
   const res = await invoke<{ taskIds: string[] }>("plugin:reminders|pending_done");
   return res.taskIds;
+}
+
+/**
+ * Дані входу для кнопки «Виконано»: телефон пише в базу сам, не відкриваючи застосунок.
+ * Викликати при вході, оновленні токена й виході (session = null).
+ */
+export async function syncNativeAuth(session: Session | null): Promise<void> {
+  if (!isAndroid()) return;
+  try {
+    await invoke("plugin:reminders|set_auth", {
+      url: supabaseUrl ?? "",
+      anonKey: supabaseAnonKey ?? "",
+      accessToken: session?.access_token ?? "",
+      expiresAt: (session?.expires_at ?? 0) * 1000,
+    });
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error("Не вдалося передати дані входу для сповіщень:", err);
+  }
 }
 
 /** Прибирає з черги задачі, які вже позначено в базі. */

@@ -25,7 +25,8 @@
   - `Toaster.tsx` — картки-повідомлення всередині застосунку.
 - `src/hooks/useDayData.ts` — дані одного дня; `useWeekSummaries.ts` — тиждень.
 - `src/db/database.ts` — увесь доступ до Supabase. Інші файли до бази напряму не ходять
-  (виняток: `src/lib/reminders.ts` читає задачі на 7 днів наперед).
+  (винятки: `src/lib/reminders.ts` читає задачі на 7 днів наперед; на Android
+  `ReminderSync.kt` ставить `done=true` з кнопки «Виконано» в сповіщенні).
 - `src/lib/settings.ts` — налаштування нагадувань, зберігаються в `localStorage` пристрою.
 - `src/lib/reminderPlan.ts` — чиста функція `buildPlan`: задачі + налаштування → список нагадувань.
 - `src/lib/reminders.ts` — доставка плану: системні сповіщення на телефоні, картки на комп'ютері.

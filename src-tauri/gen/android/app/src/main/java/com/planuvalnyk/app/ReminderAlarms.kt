@@ -152,6 +152,7 @@ object ReminderAlarms {
   }
 
   /** «Виконано»: прибрати всі нагадування задачі й запам'ятати її для JS. */
+  @Synchronized
   fun markDone(ctx: Context, taskId: String) {
     val list = load(ctx)
     val (task, rest) = list.partition { it.taskId == taskId }
@@ -170,7 +171,8 @@ object ReminderAlarms {
   fun pendingDone(ctx: Context): List<String> =
     readQueue(ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_PENDING_DONE, null))
 
-  /** Прибирає з черги задачі, які JS уже записав у базу. */
+  /** Прибирає з черги задачі, які вже записано в базу (JS або ReminderSync). */
+  @Synchronized
   fun ackDone(ctx: Context, taskIds: List<String>) {
     val prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     val queue = readQueue(prefs.getString(KEY_PENDING_DONE, null))

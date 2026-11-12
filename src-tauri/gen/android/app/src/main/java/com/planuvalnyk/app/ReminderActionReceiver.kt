@@ -18,9 +18,22 @@ class ReminderActionReceiver : BroadcastReceiver() {
     when (intent.action) {
       ACTION_SNOOZE -> ReminderAlarms.snooze(context, id, SNOOZE_MS)
       ACTION_DONE -> {
-        // Задачу позначить JS при наступному відкритті (команди pendingDone / ackDone)
         val taskId = intent.getStringExtra(EXTRA_TASK_ID)
-        if (!taskId.isNullOrBlank()) ReminderAlarms.markDone(context, taskId)
+        if (taskId.isNullOrBlank()) return
+        // Спершу в чергу (на диск), потім спроба записати в базу одразу.
+        // Не вдалося — позначить JS при наступному відкритті (pendingDone / ackDone).
+        ReminderAlarms.markDone(context, taskId)
+        val pending = goAsync() // мережа — не в головному потоці
+        val app = context.applicationContext
+        Thread {
+          try {
+            if (ReminderSync.markDoneRemote(app, taskId)) {
+              ReminderAlarms.ackDone(app, listOf(taskId))
+            }
+          } finally {
+            pending.finish()
+          }
+        }.start()
       }
     }
   }

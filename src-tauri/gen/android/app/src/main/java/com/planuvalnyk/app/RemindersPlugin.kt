@@ -10,8 +10,8 @@ import app.tauri.plugin.Plugin
 import org.json.JSONArray
 
 // Плагін Tauri «reminders»: JS передає весь план нагадувань одним викликом.
-// Виклики з JS: plugin:reminders|schedule, |cancel_all, |pending_done, |ack_done
-// (Tauri перетворює snake_case на назви методів: cancelAll, pendingDone, ackDone).
+// Виклики з JS: plugin:reminders|schedule, |cancel_all, |pending_done, |ack_done, |set_auth
+// (Tauri перетворює snake_case на назви методів: cancelAll, pendingDone, ackDone, setAuth).
 @TauriPlugin
 class RemindersPlugin(private val activity: Activity) : Plugin(activity) {
 
@@ -50,6 +50,25 @@ class RemindersPlugin(private val activity: Activity) : Plugin(activity) {
       invoke.resolve(ret)
     } catch (e: Exception) {
       invoke.reject("Не вдалося прочитати виконані задачі: ${e.message}")
+    }
+  }
+
+  // Дані входу для запису «Виконано» без відкриття застосунку.
+  // Аргументи: { url, anonKey, accessToken, expiresAt (мс) }; порожній accessToken — вийшли.
+  @Command
+  fun setAuth(invoke: Invoke) {
+    try {
+      val a = invoke.getArgs()
+      val ctx = activity.applicationContext
+      val token = a.optString("accessToken")
+      if (token.isBlank()) {
+        ReminderSync.clearAuth(ctx)
+      } else {
+        ReminderSync.saveAuth(ctx, a.getString("url"), a.getString("anonKey"), token, a.getLong("expiresAt"))
+      }
+      invoke.resolve()
+    } catch (e: Exception) {
+      invoke.reject("Не вдалося зберегти дані входу: ${e.message}")
     }
   }
 

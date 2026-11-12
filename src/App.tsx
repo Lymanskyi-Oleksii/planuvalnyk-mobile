@@ -16,7 +16,7 @@ import { useWeekSummaries } from "./hooks/useWeekSummaries";
 import { addDays, toISODate } from "./lib/date";
 import { startOfWeekISO, weekDates } from "./lib/week";
 import { useHorizontalSwipe } from "./lib/useSwipe";
-import { ackDone, pendingDone, rescheduleReminders } from "./lib/reminders";
+import { ackDone, pendingDone, rescheduleReminders, syncNativeAuth } from "./lib/reminders";
 import { onAppResume } from "./lib/appResume";
 import { toggleScheduledTask as setScheduledTaskDone } from "./db/database";
 import { subscribeSettings } from "./lib/settings";
@@ -35,10 +35,13 @@ export default function App() {
     supabase.auth.getSession().then(({ data }) => {
       setCurrentUserId(data.session?.user.id ?? null);
       setSession(data.session);
+      void syncNativeAuth(data.session);
     });
+    // Також TOKEN_REFRESHED: телефону потрібен свіжий токен для кнопки «Виконано»
     const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
       setCurrentUserId(next?.user.id ?? null);
       setSession(next);
+      void syncNativeAuth(next);
     });
     return () => sub.subscription.unsubscribe();
   }, []);
