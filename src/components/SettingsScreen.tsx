@@ -177,14 +177,7 @@ function statusView(status: ReminderStatus, enabled: boolean, permission: boolea
     status.plan.length === 0
       ? "На найближчий тиждень нагадувань немає."
       : `Заплановано ${pluralReminders(status.plan.length)} на тиждень. Найближче ${whenLabel(next.when)}.`;
-  return {
-    tone: "accent",
-    title: "Нагадування увімкнено",
-    text:
-      status.state === "inapp"
-        ? `${count} На комп'ютері вони з'являються в застосунку, поки він відкритий; системні сповіщення працюють на телефоні.`
-        : count,
-  };
+  return { tone: "accent", title: "Нагадування увімкнено", text: count };
 }
 
 const TONE_STYLES: Record<StatusView["tone"], { card: string; badge: string }> = {
@@ -291,7 +284,6 @@ export function SettingsScreen({ open, onClose, onLogout }: SettingsScreenProps)
     } else if (result === "failed") {
       toast.error("Не вдалося надіслати сповіщення", { message: "Спробуйте ще раз." });
     }
-    // "inapp": тестове нагадування вже показано карткою в застосунку
   }
 
   function handleReset() {
@@ -657,8 +649,7 @@ export function SettingsScreen({ open, onClose, onLogout }: SettingsScreenProps)
 
           <Section icon="info" title="Про застосунок" hint={version ? `Планувальник, версія ${version}` : "Планувальник"}>
             <p className="text-xs text-muted">
-              Налаштування нагадувань зберігаються на цьому пристрої, тому на телефоні й комп'ютері вони можуть бути
-              різними.
+              Налаштування нагадувань зберігаються на цьому пристрої.
             </p>
             <button onClick={handleReset} className="mt-3 text-xs font-medium text-muted underline">
               Скинути налаштування до стандартних

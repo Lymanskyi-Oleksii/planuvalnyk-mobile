@@ -1,7 +1,7 @@
 // Сповіщення всередині застосунку («тости»): короткі картки зверху екрана.
 // Будь-який код може викликати toast.success(...) без доступу до React.
 
-export type ToastKind = "success" | "error" | "info" | "reminder";
+export type ToastKind = "success" | "error" | "info";
 
 export interface ToastAction {
   label: string;
@@ -12,8 +12,6 @@ export interface ToastOptions {
   message?: string;
   duration?: number; // мс; 0 = не зникає саме
   action?: ToastAction;
-  color?: string; // колір акценту (для нагадувань: колір категорії)
-  emoji?: string; // замість стандартної іконки
 }
 
 export interface ToastItem extends ToastOptions {
@@ -27,7 +25,6 @@ const DEFAULT_DURATION: Record<ToastKind, number> = {
   success: 3500,
   info: 4500,
   error: 6000,
-  reminder: 10000,
 };
 
 const MAX_VISIBLE = 3;
@@ -72,6 +69,5 @@ export const toast = {
   success: (title: string, options?: ToastOptions) => show("success", title, options),
   error: (title: string, options?: ToastOptions) => show("error", title, options),
   info: (title: string, options?: ToastOptions) => show("info", title, options),
-  reminder: (title: string, options?: ToastOptions) => show("reminder", title, options),
   dismiss: dismissToast,
 };

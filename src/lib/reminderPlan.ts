@@ -34,7 +34,6 @@ export interface PlannedReminder {
   when: Date;
   title: string; // починається з emoji
   body: string;
-  largeBody?: string; // розгорнутий текст: картка на комп'ютері, сповіщення iOS
   lines?: string[]; // список рядків для підсумків дня
   emoji: string; // для кружка у власному макеті Android
   details: string; // деталі під заголовком у розгорнутому макеті Android
@@ -133,8 +132,6 @@ export function buildPlan(
     const color = CATEGORY_COLORS[t.category];
     const range = `${t.startTime}–${t.endTime}`;
     const details = (t.details ?? "").trim();
-    // largeBody задаємо завжди: без нього картка на комп'ютері й сповіщення iOS неповні
-    const withDetails = (line: string) => (details ? `${line}\n${details}` : line);
 
     const preBody = lead > 0 ? `Через ${durationLabel(lead)} · ${range}` : `Починається зараз · ${range}`;
     push({
@@ -143,7 +140,6 @@ export function buildPlan(
       when: at(t.date, t.startTime, -lead),
       title: `${emoji} ${t.title}`,
       body: preBody,
-      largeBody: withDetails(preBody),
       emoji,
       details,
       color,
@@ -159,7 +155,6 @@ export function buildPlan(
         when: at(t.date, t.startTime),
         title: `${emoji} ${t.title}`,
         body: startBody,
-        largeBody: withDetails(startBody),
         emoji,
         details,
         color,
@@ -178,7 +173,6 @@ export function buildPlan(
           when: at(t.date, t.startTime, -SNACK_BEFORE_MIN),
           title: "🍎 Перекус перед тренуванням",
           body: snackBody,
-          largeBody: `${snackBody}\n${snackDetails}`,
           emoji: "🍎",
           details: snackDetails,
           color: CATEGORY_COLORS.food,
@@ -195,7 +189,6 @@ export function buildPlan(
           when: at(t.date, t.endTime, POST_MIN),
           title: "❤️ Виміряйте пульс",
           body: pulseBody,
-          largeBody: `${pulseBody}\n${pulseDetails}`,
           emoji: "❤️",
           details: pulseDetails,
           color: CATEGORY_COLORS.health,

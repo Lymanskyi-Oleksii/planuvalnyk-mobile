@@ -5,7 +5,6 @@ const KIND_COLOR: Record<ToastKind, string> = {
   success: "#16A34A",
   error: "#DC2626",
   info: "#2F6FED",
-  reminder: "#2F6FED",
 };
 
 function KindIcon({ kind }: { kind: ToastKind }) {
@@ -31,12 +30,6 @@ function KindIcon({ kind }: { kind: ToastKind }) {
           <path d="M10 5.5v5.5M10 14.2v.3" />
         </svg>
       );
-    case "reminder":
-      return (
-        <svg {...common}>
-          <path d="M5.5 14h9l-1.2-1.8V9a3.3 3.3 0 00-6.6 0v3.2L5.5 14zM8.6 16.2a1.5 1.5 0 002.8 0" />
-        </svg>
-      );
     default:
       return (
         <svg {...common}>
@@ -47,7 +40,7 @@ function KindIcon({ kind }: { kind: ToastKind }) {
 }
 
 function ToastCard({ item }: { item: ToastItem }) {
-  const color = item.color ?? KIND_COLOR[item.kind];
+  const color = KIND_COLOR[item.kind];
 
   useEffect(() => {
     if (item.duration <= 0) return;
@@ -68,7 +61,7 @@ function ToastCard({ item }: { item: ToastItem }) {
           style={{ backgroundColor: `${color}1A`, color }}
           aria-hidden="true"
         >
-          {item.emoji ?? <KindIcon kind={item.kind} />}
+          <KindIcon kind={item.kind} />
         </span>
 
         <div className="min-w-0 flex-1 py-0.5">

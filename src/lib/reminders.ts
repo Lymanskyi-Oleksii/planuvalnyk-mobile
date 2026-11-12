@@ -22,7 +22,6 @@ import {
   type PlanTask,
   type PlannedReminder,
 } from "./reminderPlan";
-import { toast } from "./toast";
 
 // Нагадування — локальні сповіщення телефону, заплановані наперед на найближчі
 // дні. Вони спрацьовують і без інтернету та без відкритого застосунку.
@@ -31,8 +30,7 @@ import { toast } from "./toast";
 // Що саме нагадувати, вирішує план (lib/reminderPlan.ts) за налаштуваннями
 // й полями самої задачі. Цей файл лише доставляє план:
 //   • на Android — власним плагіном reminders (сповіщення з нашим макетом);
-//   • на iOS — системними сповіщеннями плагіна notification;
-//   • на комп'ютері — картками всередині застосунку, поки він відкритий.
+//   • на iOS — системними сповіщеннями плагіна notification.
 // Дозвіл на сповіщення й канали Android — через плагін notification.
 
 const DAYS_AHEAD = 7;
@@ -53,7 +51,6 @@ const CHANNEL_BY_MODE: Record<AlertMode, string> = {
 export type ReminderState =
   | "idle" // ще не планували
   | "scheduled" // системні сповіщення заплановано
-  | "inapp" // пристрій без системних сповіщень: нагадуємо всередині застосунку
   | "off" // вимкнено головним вимикачем
   | "denied" // немає дозволу на сповіщення
   | "error";
@@ -273,9 +270,7 @@ function deliver(p: PlannedReminder, mode: AlertMode, when: Date = p.when): void
     channelId: p.silent ? CHANNEL_SILENT : CHANNEL_BY_MODE[mode],
     title: p.title,
     body: p.body,
-    // Android показує або розгорнутий текст, або список рядків
-    largeBody: p.largeBody,
-    inboxLines: p.largeBody ? undefined : p.lines,
+    inboxLines: p.lines,
     icon: SMALL_ICON,
     iconColor: p.color,
     silent: p.silent,
@@ -284,7 +279,7 @@ function deliver(p: PlannedReminder, mode: AlertMode, when: Date = p.when): void
   });
 }
 
-export type TestResult = "scheduled" | "inapp" | "denied" | "failed";
+export type TestResult = "scheduled" | "denied" | "failed";
 
 const TEST_REMINDER: PlannedReminder = {
   key: "test",
@@ -292,7 +287,6 @@ const TEST_REMINDER: PlannedReminder = {
   when: new Date(0),
   title: "🏃 Тренування",
   body: "Через 15 хв · 18:00–19:00",
-  largeBody: "Через 15 хв · 18:00–19:00\nТак виглядатимуть нагадування про ваші задачі.",
   emoji: "🏃",
   details: "Так виглядатимуть нагадування про ваші задачі.",
   color: "#F97316",
@@ -300,13 +294,10 @@ const TEST_REMINDER: PlannedReminder = {
   date: "",
 };
 
-/** Тестове сповіщення: на телефоні прийде через 5 секунд, на комп'ютері з'явиться одразу в застосунку. */
+/** Тестове сповіщення: прийде через 5 секунд. */
 export async function sendTestNotification(): Promise<TestResult> {
   try {
-    if (!(await isMobile())) {
-      showInApp(TEST_REMINDER, 8000);
-      return "inapp";
-    }
+    if (!(await isMobile())) return "failed"; // не телефон (наприклад, браузер)
     if (!(await requestNotificationPermission())) return "denied";
     await ensureChannels();
     const settings = loadSettings();
@@ -329,35 +320,6 @@ export async function sendTestNotification(): Promise<TestResult> {
     console.error("Тестове сповіщення не вдалося:", err);
     return "failed";
   }
-}
-
-// ── Нагадування всередині застосунку (комп'ютер) ─────────────────────────────
-
-const MAX_TIMEOUT = 2_000_000_000; // setTimeout не приймає більше ~24 діб
-let inAppTimer: number | undefined;
-
-function showInApp(p: PlannedReminder, duration = 0): void {
-  toast.reminder(p.title, { message: p.largeBody ?? p.body, color: p.color, duration });
-}
-
-function armInApp(plan: PlannedReminder[]): void {
-  window.clearTimeout(inAppTimer);
-  inAppTimer = undefined;
-  const next = plan[0];
-  if (!next) return;
-
-  const wait = next.when.getTime() - Date.now();
-  inAppTimer = window.setTimeout(
-    () => {
-      if (Date.now() < next.when.getTime() - 1_000) {
-        armInApp(plan); // таймер спрацював раніше (дуже довге очікування): чекаємо далі
-        return;
-      }
-      showInApp(next);
-      armInApp(plan.slice(1));
-    },
-    Math.min(Math.max(wait, 0), MAX_TIMEOUT)
-  );
 }
 
 // ── Планування ───────────────────────────────────────────────────────────────
@@ -418,7 +380,6 @@ async function doReschedule(): Promise<void> {
     const settings = loadSettings();
 
     if (!settings.enabled) {
-      armInApp([]);
       // головний вимикач: прибираємо всі заплановані
       if (isAndroid()) await cancelAndroid();
       else if (mobile) await cancelAll();
@@ -434,12 +395,6 @@ async function doReschedule(): Promise<void> {
       settings.morningDigest ? fetchDailyTasks(userId, today, until) : Promise.resolve([]),
     ]);
     const plan = buildPlan(tasks, settings, new Date(), daily).slice(0, MAX_NOTIFICATIONS);
-
-    if (!mobile) {
-      armInApp(plan);
-      publish("inapp", plan);
-      return;
-    }
 
     if (!(await requestNotificationPermission())) {
       publish("denied", plan);
