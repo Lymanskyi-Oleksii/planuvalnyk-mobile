@@ -6,7 +6,7 @@ import { addDays, fromISODate } from "@/lib/date";
 import { useBackHandler } from "@/lib/backButton";
 import { findOverlap } from "@/lib/overlap";
 import { getSeriesTasksFrom, getTasksOnDates } from "@/db/database";
-import { CATEGORY_LABELS, type Category, type ScheduledTask, type SeriesScope } from "@/types";
+import { CATEGORY_LABELS, type Category, type ScheduledTask, type SeriesScope, type SubtaskDraft } from "@/types";
 
 export interface TaskFormValues {
   startTime: string;
@@ -14,7 +14,7 @@ export interface TaskFormValues {
   title: string;
   category: Category;
   details?: string;
-  subtasks: string[];
+  subtasks: SubtaskDraft[]; // порядок = sort_order
   remind: boolean | null; // null = за загальними налаштуваннями
   remindBeforeMin: number | null; // null = загальне значення
   repeatDates: string[]; // нова задача: інші дні повтору, крім поточного (без накладок)
@@ -46,6 +46,14 @@ const WEEKDAYS: [number, string][] = [
 ];
 
 const MAX_REPEAT_COPIES = 200;
+
+/** Підзадача у формі: key — лише для React (у нової підзадачі ще немає id). */
+type FormSubtask = SubtaskDraft & { key: string };
+
+let nextSubtaskKey = 0;
+function formSubtask(s: SubtaskDraft): FormSubtask {
+  return { ...s, key: `s${nextSubtaskKey++}` };
+}
 
 // Дні повтору після date до until включно, лише позначені дні тижня
 function repeatDatesFor(date: string, until: string, weekdays: number[]): string[] {
@@ -83,7 +91,7 @@ export function AddTaskModal({
   const [endTime, setEndTime] = useState("10:00");
   const [category, setCategory] = useState<Category>("other");
   const [details, setDetails] = useState("");
-  const [subtasks, setSubtasks] = useState<string[]>([]);
+  const [subtasks, setSubtasks] = useState<FormSubtask[]>([]);
   const [subtaskDraft, setSubtaskDraft] = useState("");
   const subtaskInputRef = useRef<HTMLInputElement>(null);
   // null = користувач нічого не міняв, діють загальні налаштування
@@ -144,7 +152,7 @@ export function AddTaskModal({
       setEndTime(editingTask.endTime);
       setCategory(editingTask.category);
       setDetails(editingTask.details ?? "");
-      setSubtasks(editingTask.subtasks.map((s) => s.title));
+      setSubtasks(editingTask.subtasks.map((s) => formSubtask({ id: s.id, title: s.title, done: s.done })));
       setRemindOverride(editingTask.remind);
       setLeadOverride(editingTask.remindBeforeMin);
     } else {
@@ -195,7 +203,7 @@ export function AddTaskModal({
 
   function addSubtaskDraft() {
     if (subtaskDraft.trim()) {
-      setSubtasks((s) => [...s, subtaskDraft.trim()]);
+      setSubtasks((s) => [...s, formSubtask({ title: subtaskDraft.trim(), done: false })]);
       setSubtaskDraft("");
     }
     // Фокус лишається в полі — одразу писати наступну
@@ -218,7 +226,10 @@ export function AddTaskModal({
         title: title.trim(),
         category,
         details: details.trim() || undefined,
-        subtasks: draft ? [...subtasks, draft] : subtasks,
+        subtasks: [
+          ...subtasks.map(({ id, title, done }) => ({ id, title, done })),
+          ...(draft ? [{ title: draft, done: false }] : []),
+        ],
         remind: remindOverride,
         remindBeforeMin: leadOverride,
         repeatDates: newRepeatDates.filter((d) => !repeatSkipped.includes(d)),
@@ -456,9 +467,10 @@ export function AddTaskModal({
             {subtasks.length > 0 && (
               <ul className="mt-2 space-y-1.5">
                 {subtasks.map((s, i) => (
-                  <li key={i} className="flex items-center gap-2">
-                    <Checkbox size="sm" checked={false} onChange={() => {}} />
-                    <span className="flex-1 text-sm text-ink">{s}</span>
+                  <li key={s.key} className="flex items-center gap-2">
+                    {/* Галочку тут лише видно: ставлять її в розкладі, форма done не змінює */}
+                    <Checkbox size="sm" checked={s.done} onChange={() => {}} />
+                    <span className={`flex-1 text-sm ${s.done ? "text-muted line-through" : "text-ink"}`}>{s.title}</span>
                     <button
                       onClick={() => removeSubtask(i)}
                       className="text-muted hover:text-ink"

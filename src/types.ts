@@ -31,6 +31,13 @@ export interface Subtask {
   sortOrder: number;
 }
 
+/** Підзадача у формі задачі: id — у наявної, done лише для показу (форма його не змінює). */
+export interface SubtaskDraft {
+  id?: string;
+  title: string;
+  done: boolean;
+}
+
 // Тип 1 — запланована задача: дата, час початку/кінця, назва, підзадачі, checkbox
 export interface ScheduledTask {
   id: string;

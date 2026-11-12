@@ -321,7 +321,12 @@ function PlannerApp() {
       if (editingTask) {
         const series =
           scope === "following" && editingTask.seriesId
-            ? { seriesId: editingTask.seriesId, fromDate: editingTask.date, skipIds }
+            ? {
+                seriesId: editingTask.seriesId,
+                fromDate: editingTask.date,
+                skipIds,
+                baseSubtaskIds: editingTask.subtasks.map((s) => s.id),
+              }
             : undefined;
         await updateScheduledTask(editingTask.id, task, series);
       } else {

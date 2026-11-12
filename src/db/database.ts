@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabaseClient";
 import { getCurrentUserId, requireUserId } from "@/lib/session";
-import type { Category, DailyTask, DayNote, MultiDayNote, ScheduledTask, Subtask } from "@/types";
+import type { Category, DailyTask, DayNote, MultiDayNote, ScheduledTask, Subtask, SubtaskDraft } from "@/types";
 
 // ---------- Офлайн: збережені на пристрої дні ----------
 // Кожне вдале читання дня запам'ятовуємо в localStorage. Коли мережі немає,
@@ -300,20 +300,19 @@ async function insertTaskRows(rows: Record<string, unknown>[]): Promise<string[]
   throw new Error("Не вдалося зберегти задачу");
 }
 
-// Оновлює поля кількох задач і перестворює їхні підзадачі
-async function updateTaskRows(
-  ids: string[],
-  input: {
-    startTime: string;
-    endTime: string;
-    title: string;
-    category: Category;
-    details?: string | null;
-    subtasks: string[];
-    remind?: boolean | null;
-    remindBeforeMin?: number | null;
-  }
-): Promise<void> {
+// Поля задачі, які змінює форма редагування
+interface TaskFieldsInput {
+  startTime: string;
+  endTime: string;
+  title: string;
+  category: Category;
+  details?: string | null;
+  remind?: boolean | null;
+  remindBeforeMin?: number | null;
+}
+
+// Оновлює поля кількох задач (без підзадач)
+async function updateTaskFields(ids: string[], input: TaskFieldsInput): Promise<void> {
   if (ids.length === 0) return;
   const base = {
     start_time: input.startTime,
@@ -334,17 +333,35 @@ async function updateTaskRows(
     ({ error } = await supabase.from("scheduled_tasks").update(base).in("id", ids));
   }
   if (error) throw error;
+}
 
-  // Найпростіший надійний спосіб синхронізувати підзадачі — перестворити їх
-  const { error: delErr } = await supabase.from("subtasks").delete().in("task_id", ids);
-  if (delErr) throw delErr;
+/**
+ * Приводить підзадачі задачі до списку з форми, не чіпаючи done:
+ * наявні (id з existingIds) — нова назва й sort_order за позицією в списку,
+ * без id або з чужим id — нові, наявні, яких у списку немає, — видаляються.
+ */
+async function syncTaskSubtasks(taskId: string, existingIds: string[], drafts: SubtaskDraft[]): Promise<void> {
+  const own = new Set(existingIds);
+  const isOwn = (d: SubtaskDraft) => !!d.id && own.has(d.id);
 
-  const rows = ids.flatMap((taskId) =>
-    input.subtasks.map((title, i) => ({ task_id: taskId, title, sort_order: i }))
+  const removed = existingIds.filter((id) => !drafts.some((d) => d.id === id));
+  if (removed.length > 0) {
+    const { error } = await supabase.from("subtasks").delete().in("id", removed);
+    if (error) throw error;
+  }
+
+  const updates = await Promise.all(
+    drafts.flatMap((d, i) =>
+      isOwn(d) ? [supabase.from("subtasks").update({ title: d.title, sort_order: i }).eq("id", d.id!)] : []
+    )
   );
+  const failed = updates.find((r) => r.error);
+  if (failed?.error) throw failed.error;
+
+  const rows = drafts.flatMap((d, i) => (isOwn(d) ? [] : [{ task_id: taskId, title: d.title, sort_order: i }]));
   if (rows.length > 0) {
-    const { error: insErr } = await supabase.from("subtasks").insert(rows);
-    if (insErr) throw insErr;
+    const { error } = await supabase.from("subtasks").insert(rows);
+    if (error) throw error;
   }
 }
 
@@ -454,32 +471,47 @@ export async function getSeriesTasksFrom(seriesId: string, fromDate: string): Pr
   const userId = requireUserId();
   const { data, error } = await supabase
     .from("scheduled_tasks")
-    .select("*")
+    .select("*, subtasks(*)")
     .eq("user_id", userId)
     .eq("series_id", seriesId)
-    .gte("date", fromDate);
+    .gte("date", fromDate)
+    .order("sort_order", { referencedTable: "subtasks", ascending: true });
   if (error) throw error;
   return (data ?? []).map(mapScheduledTask);
 }
 
+/**
+ * «Цю й наступні»: однакові поля для всіх копій серії від fromDate (крім skipIds).
+ * Підзадачі кожної копії зіставляються з відредагованою задачею за позицією до змін:
+ * baseSubtaskIds — id її підзадач у старому порядку. Підзадача з форми на позиції k
+ * оновлює k-ту підзадачу копії (done лишається), нові додаються, прибрані позиції видаляються.
+ */
 export async function updateScheduledTaskSeries(
   seriesId: string,
   fromDate: string,
-  input: {
-    startTime: string;
-    endTime: string;
-    title: string;
-    category: Category;
-    details?: string | null;
-    subtasks: string[];
-    remind?: boolean | null;
-    remindBeforeMin?: number | null;
-  },
-  skipIds: string[] = []
+  input: TaskFieldsInput & { subtasks: SubtaskDraft[] },
+  skipIds: string[] = [],
+  baseSubtaskIds: string[] = []
 ): Promise<void> {
-  const tasks = await getSeriesTasksFrom(seriesId, fromDate);
-  const ids = tasks.map((t) => t.id).filter((id) => !skipIds.includes(id));
-  await updateTaskRows(ids, input);
+  const { subtasks, ...fields } = input;
+  const tasks = (await getSeriesTasksFrom(seriesId, fromDate)).filter((t) => !skipIds.includes(t.id));
+  await updateTaskFields(
+    tasks.map((t) => t.id),
+    fields
+  );
+  // По черзі: у серії бувають десятки копій
+  for (const copy of tasks) {
+    const own = [...copy.subtasks].sort((a, b) => a.sortOrder - b.sortOrder);
+    const drafts = subtasks.map((d) => {
+      const k = d.id ? baseSubtaskIds.indexOf(d.id) : -1;
+      return { ...d, id: k >= 0 ? own[k]?.id : undefined };
+    });
+    await syncTaskSubtasks(
+      copy.id,
+      own.map((s) => s.id),
+      drafts
+    );
+  }
 }
 
 export async function deleteScheduledTaskSeries(seriesId: string, fromDate: string): Promise<void> {
@@ -499,18 +531,18 @@ export async function toggleScheduledTask(id: string, done: boolean): Promise<vo
 
 export async function updateScheduledTask(
   id: string,
-  input: {
-    startTime: string;
-    endTime: string;
-    title: string;
-    category: Category;
-    details?: string | null;
-    subtasks: string[];
-    remind?: boolean | null;
-    remindBeforeMin?: number | null;
-  }
+  input: TaskFieldsInput & { subtasks: SubtaskDraft[] }
 ): Promise<void> {
-  await updateTaskRows([id], input);
+  const { subtasks, ...fields } = input;
+  await updateTaskFields([id], fields);
+  // Поточні підзадачі — з бази, а не з форми: так прибрані точно видаляться
+  const { data, error } = await supabase.from("subtasks").select("id").eq("task_id", id);
+  if (error) throw error;
+  await syncTaskSubtasks(
+    id,
+    (data ?? []).map((r) => r.id as string),
+    subtasks
+  );
 }
 
 // Перетягування в календарі: новий день і час, решта полів і підзадачі не змінюються
@@ -536,10 +568,10 @@ export async function deleteScheduledTask(id: string): Promise<void> {
 
 // ---------- Підзадачі ----------
 
-export async function addSubtask(taskId: string, title: string): Promise<string> {
+export async function addSubtask(taskId: string, title: string, sortOrder = 0): Promise<string> {
   const { data, error } = await supabase
     .from("subtasks")
-    .insert({ task_id: taskId, title })
+    .insert({ task_id: taskId, title, sort_order: sortOrder })
     .select("id")
     .single();
   if (error) throw error;

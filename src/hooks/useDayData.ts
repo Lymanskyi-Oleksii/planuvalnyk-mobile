@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import * as db from "@/db/database";
-import type { Category, DailyTask, DayNote, MultiDayNote, ScheduledTask, SeriesScope } from "@/types";
+import type { Category, DailyTask, DayNote, MultiDayNote, ScheduledTask, SeriesScope, SubtaskDraft } from "@/types";
 
 export function useDayData(date: string) {
   const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([]);
@@ -84,18 +84,19 @@ export function useDayData(date: string) {
       title: string;
       category: Category;
       details?: string;
-      subtasks?: string[];
+      subtasks?: SubtaskDraft[];
       remind?: boolean | null;
       remindBeforeMin?: number | null;
       repeatDates?: string[]; // інші дні повторюваної задачі, крім поточного
     }) => {
       const { subtasks = [], repeatDates = [], date: taskDate = date, ...rest } = input;
+      const titles = subtasks.map((s) => s.title);
       if (repeatDates.length > 0) {
-        await db.createScheduledTaskSeries({ ...rest, subtasks }, [taskDate, ...repeatDates]);
+        await db.createScheduledTaskSeries({ ...rest, subtasks: titles }, [taskDate, ...repeatDates]);
       } else {
         const taskId = await db.createScheduledTask({ date: taskDate, ...rest });
-        for (const title of subtasks) {
-          await db.addSubtask(taskId, title);
+        for (const [i, title] of titles.entries()) {
+          await db.addSubtask(taskId, title, i);
         }
       }
       await reload();
@@ -112,16 +113,23 @@ export function useDayData(date: string) {
         title: string;
         category: Category;
         details?: string;
-        subtasks?: string[];
+        subtasks?: SubtaskDraft[];
         remind?: boolean | null;
         remindBeforeMin?: number | null;
       },
-      // Для «цієї й наступних»: серія, з якої дати, які копії не чіпати (накладки)
-      series?: { seriesId: string; fromDate: string; skipIds: string[] }
+      // Для «цієї й наступних»: серія, з якої дати, які копії не чіпати (накладки),
+      // id підзадач задачі до змін — щоб зіставити підзадачі копій за позицією
+      series?: { seriesId: string; fromDate: string; skipIds: string[]; baseSubtaskIds: string[] }
     ) => {
       const { subtasks = [], ...rest } = input;
       if (series) {
-        await db.updateScheduledTaskSeries(series.seriesId, series.fromDate, { ...rest, subtasks }, series.skipIds);
+        await db.updateScheduledTaskSeries(
+          series.seriesId,
+          series.fromDate,
+          { ...rest, subtasks },
+          series.skipIds,
+          series.baseSubtaskIds
+        );
       } else {
         await db.updateScheduledTask(id, { ...rest, subtasks });
       }
