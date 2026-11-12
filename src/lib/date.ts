@@ -41,6 +41,11 @@ export function addDays(iso: string, amount: number): string {
   return toISODate(d);
 }
 
+/** Скільки днів від from до to (від'ємне, якщо to раніше). */
+export function daysBetween(fromIso: string, toIso: string): number {
+  return Math.round((fromISODate(toIso).getTime() - fromISODate(fromIso).getTime()) / 86_400_000);
+}
+
 export function isToday(iso: string): boolean {
   return iso === toISODate(new Date());
 }

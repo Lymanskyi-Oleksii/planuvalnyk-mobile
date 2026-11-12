@@ -16,7 +16,9 @@ import { MobileTabs, type MobileTab } from "./components/MobileTabs";
 import { AddTaskModal, type TaskFormValues } from "./components/AddTaskModal";
 import { useDayData } from "./hooks/useDayData";
 import { useWeekSummaries } from "./hooks/useWeekSummaries";
-import { addDays, toISODate } from "./lib/date";
+import { addDays, daysBetween, toISODate } from "./lib/date";
+import { planSeriesMove } from "./lib/overlap";
+import type { DropTarget } from "./hooks/useCalendarDrag";
 import { startOfWeekISO, weekDates } from "./lib/week";
 import { useHorizontalSwipe } from "./lib/useSwipe";
 import {
@@ -31,7 +33,10 @@ import { initBackButton, setRootBackHandler } from "./lib/backButton";
 import {
   clearOfflineCache,
   flushOfflineQueue,
+  getSeriesTasksFrom,
+  getTasksOnDates,
   isOffline,
+  moveScheduledTasks,
   subscribeOffline,
   toggleScheduledTask as setScheduledTaskDone,
   toggleSubtask as setSubtaskDone,
@@ -360,6 +365,30 @@ function PlannerApp() {
     bump();
   }
 
+  // Перетягування в календарі: новий день і час. Для «цієї й наступних» кожна копія серії
+  // зсувається на ту саму кількість днів; копії з накладками лишаються на місці.
+  async function handleMoveTask(task: ScheduledTask, target: DropTarget, scope: SeriesScope): Promise<boolean> {
+    if (blockedOffline()) return false;
+    try {
+      if (scope === "following" && task.seriesId) {
+        const shift = daysBetween(task.date, target.date);
+        const copies = await getSeriesTasksFrom(task.seriesId, task.date);
+        const others = await getTasksOnDates([...new Set(copies.map((c) => addDays(c.date, shift)))]);
+        const { moves } = planSeriesMove(copies, others, shift, target.startTime, target.endTime);
+        await moveScheduledTasks(moves);
+      } else {
+        await moveScheduledTasks([{ id: task.id, ...target }]);
+      }
+      await reloadDay(); // «Список» і задачі активного дня
+      bump();
+      return true;
+    } catch (err) {
+      toast.error("Не вдалося перенести задачу", { message: errorText(err) });
+      bump();
+      return false;
+    }
+  }
+
   async function handleLogout() {
     await supabase.auth.signOut();
     clearOfflineCache();
@@ -426,6 +455,8 @@ function PlannerApp() {
                   setActiveDate(d);
                   setActiveTab("tasks");
                 }}
+                canEdit={() => !blockedOffline()}
+                onMoveTask={handleMoveTask}
               />
             ) : (
               <TodaySchedule

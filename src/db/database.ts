@@ -513,6 +513,22 @@ export async function updateScheduledTask(
   await updateTaskRows([id], input);
 }
 
+// Перетягування в календарі: новий день і час, решта полів і підзадачі не змінюються
+export async function moveScheduledTasks(
+  moves: { id: string; date: string; startTime: string; endTime: string }[]
+): Promise<void> {
+  const results = await Promise.all(
+    moves.map((m) =>
+      supabase
+        .from("scheduled_tasks")
+        .update({ date: m.date, start_time: m.startTime, end_time: m.endTime })
+        .eq("id", m.id)
+    )
+  );
+  const failed = results.find((r) => r.error);
+  if (failed?.error) throw failed.error;
+}
+
 export async function deleteScheduledTask(id: string): Promise<void> {
   const { error } = await supabase.from("scheduled_tasks").delete().eq("id", id);
   if (error) throw error;

@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { formatMinutes, useCalendarDrag, type DropTarget } from "@/hooks/useCalendarDrag";
 import { useCalendarZoom } from "@/hooks/useCalendarZoom";
 import { useRangeDailyCounts } from "@/hooks/useRangeDailyCounts";
 import { useRangeTasks } from "@/hooks/useRangeTasks";
@@ -10,6 +11,7 @@ import type { CalendarRange } from "@/lib/settings";
 import { WEEKDAY_SHORT, dayOfMonth, monthRangeLabel, parseISO } from "@/lib/week";
 import type { ScheduledTask, SeriesScope } from "@/types";
 import { CalendarTaskSheet } from "./CalendarTaskSheet";
+import { MoveScopeDialog } from "./MoveScopeDialog";
 
 interface CalendarViewProps {
   date: string;
@@ -33,6 +35,29 @@ interface CalendarViewProps {
   onOpenDay: (date: string) => void;
   /** Тап по мітці «N задач»: відкрити цей день на вкладці «Задачі». */
   onOpenDailyTasks: (date: string) => void;
+  /** Чи можна змінювати задачі (без мережі — ні; сам показує картку-помилку). */
+  canEdit: () => boolean;
+  /** Перетягування: новий день і час. true — збережено. */
+  onMoveTask: (task: ScheduledTask, target: DropTarget, scope: SeriesScope) => Promise<boolean>;
+}
+
+/** Задача, перенесена перетягуванням: показуємо її на новому місці, доки не прочитано свіжі дані. */
+interface MovedTask extends DropTarget {
+  task: ScheduledTask;
+  /** Дані, на яких ще старе місце: щойно прийдуть інші — показ прибирається. */
+  staleTasks?: Record<string, ScheduledTask[]>;
+}
+
+function withMoved(tasks: Record<string, ScheduledTask[]>, moved: MovedTask | null): Record<string, ScheduledTask[]> {
+  if (!moved) return tasks;
+  const { task } = moved;
+  const out = { ...tasks };
+  out[task.date] = (out[task.date] ?? []).filter((t) => t.id !== task.id);
+  out[moved.date] = [
+    ...(out[moved.date] ?? []).filter((t) => t.id !== task.id),
+    { ...task, date: moved.date, startTime: moved.startTime, endTime: moved.endTime },
+  ];
+  return out;
 }
 
 /** «1 задача», «3 задачі», «5 задач», «21 задача». */
@@ -49,10 +74,6 @@ const RANGES: [CalendarRange, string][] = [
   [3, "3 дні"],
   [7, "Тиждень"],
 ];
-
-function formatMinutes(min: number): string {
-  return `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
-}
 
 const HOURS = Array.from({ length: 24 }, (_, h) => h);
 
@@ -71,31 +92,42 @@ interface TaskBlockProps {
   lanes: number;
   compact: boolean;
   onOpen: () => void;
+  /** dim — старе місце задачі, яку зараз тягнуть; ghost — блок під пальцем. */
+  variant?: "dim" | "ghost";
+  /** Блок під пальцем накладається на іншу задачу. */
+  conflict?: boolean;
 }
 
 // Блок задачі в колонці дня: залитий кольором категорії, білий текст.
-function TaskBlock({ task, hourHeight, lane, lanes, compact, onOpen }: TaskBlockProps) {
+// data-task і data-task-date — для перетягування (useCalendarDrag).
+function TaskBlock({ task, hourHeight, lane, lanes, compact, onOpen, variant, conflict }: TaskBlockProps) {
   const { top, height } = blockRect(task.startTime, task.endTime, hourHeight);
   const short = timeToMinutes(task.endTime) - timeToMinutes(task.startTime) < 30;
-  // Час — лише для задач від 30 хв і не в режимі «Тиждень»
-  const showTime = !short && !compact;
+  const ghost = variant === "ghost";
+  // Час — лише для задач від 30 хв і не в режимі «Тиждень»; під пальцем — завжди
+  const showTime = ghost || (!short && !compact);
 
   return (
     <button
       type="button"
+      data-task={ghost ? undefined : task.id}
+      data-task-date={ghost ? undefined : task.date}
       onClick={(e) => {
         e.stopPropagation(); // не створювати задачу під блоком
         onOpen();
       }}
-      className={`absolute z-10 overflow-hidden rounded-md text-left ${
+      className={`absolute overflow-hidden rounded-md text-left select-none [-webkit-touch-callout:none] ${
         task.done ? "bg-done-bg text-done-fg" : "text-white"
-      } ${compact ? "px-1 py-0.5" : "px-1.5 py-0.5"}`}
+      } ${compact ? "px-1 py-0.5" : "px-1.5 py-0.5"} ${variant === "dim" ? "opacity-40" : ""} ${
+        ghost ? "pointer-events-none shadow-card ring-2 ring-offset-1 ring-offset-panel" : ""
+      } ${ghost ? (conflict ? "ring-danger" : "ring-accent") : ""}`}
       style={{
         top: top + GAP / 2,
         height: Math.max(height - GAP, 4),
         left: `calc(${(lane / lanes) * 100}% + ${GAP}px)`,
         width: `calc(${100 / lanes}% - ${GAP * 2}px)`,
         backgroundColor: task.done ? undefined : CATEGORY_COLORS[task.category],
+        zIndex: ghost ? 15 : 10, // над блоками, але під шапкою днів (z-20)
       }}
     >
       <span
@@ -106,9 +138,13 @@ function TaskBlock({ task, hourHeight, lane, lanes, compact, onOpen }: TaskBlock
         {task.title}
       </span>
       {showTime && (
-        <span className="block truncate text-[11px] leading-snug opacity-90">
+        <span className={`block truncate leading-snug opacity-90 ${compact ? "text-[10px]" : "text-[11px]"}`}>
           {task.startTime}–{task.endTime}
         </span>
+      )}
+      {ghost && (
+        // Ручка внизу: тягнучи за нижній край, змінюють тривалість
+        <span className="absolute bottom-0.5 left-1/2 h-1 w-6 -translate-x-1/2 rounded-full bg-current opacity-60" />
       )}
     </button>
   );
@@ -131,13 +167,51 @@ export function CalendarView({
   onGoToday,
   onOpenDay,
   onOpenDailyTasks,
+  canEdit,
+  onMoveTask,
 }: CalendarViewProps) {
   const dates = rangeDates(date, range);
-  const { tasks, ready } = useRangeTasks(dates, refreshKey);
+  const { tasks: loadedTasks, ready } = useRangeTasks(dates, refreshKey);
   const dailyCounts = useRangeDailyCounts(dates, refreshKey);
   const scrollRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
   const { hourHeight, hourHeightRef } = useCalendarZoom(scrollRef, headerRef, savedHourHeight);
+
+  // Перенесена задача — на новому місці одразу, ще до відповіді бази
+  const [moved, setMoved] = useState<MovedTask | null>(null);
+  const tasks = withMoved(loadedTasks, moved);
+  useEffect(() => {
+    if (moved?.staleTasks && loadedTasks !== moved.staleTasks) setMoved(null);
+  }, [loadedTasks, moved]);
+  // Задача серії чекає вибору «Лише цю / Цю й наступні»
+  const [askScope, setAskScope] = useState(false);
+
+  const loadedTasksRef = useRef(loadedTasks);
+  loadedTasksRef.current = loadedTasks;
+
+  async function commitMove(target: MovedTask, scope: SeriesScope) {
+    setAskScope(false);
+    const ok = await onMoveTask(target.task, target, scope);
+    // Після збереження календар перечитує дні: показ прибираємо, щойно прийдуть свіжі дані
+    if (!ok) setMoved(null);
+    else setMoved((m) => (m && m.task.id === target.task.id ? { ...m, staleTasks: loadedTasksRef.current } : m));
+  }
+
+  const tasksRef = useRef(tasks);
+  tasksRef.current = tasks;
+  const { drag, isClickSuppressed } = useCalendarDrag({
+    scrollRef,
+    headerRef,
+    hourHeightRef,
+    getDayTasks: (d) => tasksRef.current[d] ?? [],
+    canDrag: () => !moved && canEdit(),
+    onDrop: (task, target) => {
+      const next: MovedTask = { task, ...target };
+      setMoved(next);
+      if (task.seriesId) setAskScope(true);
+      else void commitMove(next, "one");
+    },
+  });
 
   // Відкрита в нижній панелі задача. Береться зі свіжих даних, тож галочки й редагування
   // одразу видно в панелі; якщо задачу видалили — панель закривається.
@@ -312,9 +386,10 @@ export function CalendarView({
               return (
                 <div
                   key={d}
-                  data-date={d}
+                  data-col={d}
                   className="relative border-l border-line"
                   onClick={(e) => {
+                    if (isClickSuppressed()) return; // клік після перетягування — не тап
                     // Початок — за місцем тапу, округлений вниз до 30 хв; тривалість 1 година
                     const y = e.clientY - e.currentTarget.getBoundingClientRect().top;
                     const start = Math.min(Math.floor(topToMinutes(y, hourHeight) / 30) * 30, 23 * 60 + 30);
@@ -337,10 +412,25 @@ export function CalendarView({
                         lane={place.lane}
                         lanes={place.lanes}
                         compact={range === 7}
-                        onOpen={() => setOpened({ id: t.id, date: d })}
+                        variant={drag?.task.id === t.id ? "dim" : undefined}
+                        onOpen={() => {
+                          if (!isClickSuppressed()) setOpened({ id: t.id, date: d });
+                        }}
                       />
                     );
                   })}
+                  {drag?.date === d && (
+                    <TaskBlock
+                      task={{ ...drag.task, date: d, startTime: formatMinutes(drag.start), endTime: formatMinutes(drag.end) }}
+                      hourHeight={hourHeight}
+                      lane={0}
+                      lanes={1}
+                      compact={range === 7}
+                      variant="ghost"
+                      conflict={drag.conflict}
+                      onOpen={() => {}}
+                    />
+                  )}
                   {isToday(d) && (
                     <div
                       className="pointer-events-none absolute right-0 left-0 z-10 h-0.5 -translate-y-1/2 bg-danger"
@@ -363,6 +453,17 @@ export function CalendarView({
         onToggleSubtask={onToggleSubtask}
         onEdit={(t) => onEditTask(t, tasks[t.date] ?? [])}
         onDelete={onDeleteTask}
+      />
+
+      <MoveScopeDialog
+        open={askScope}
+        onChoose={(scope) => {
+          if (moved) void commitMove(moved, scope);
+        }}
+        onCancel={() => {
+          setAskScope(false);
+          setMoved(null);
+        }}
       />
     </section>
   );

@@ -4,6 +4,7 @@ import { Toggle } from "./Toggle";
 import { leadLabel, loadSettings } from "@/lib/settings";
 import { addDays, fromISODate } from "@/lib/date";
 import { useBackHandler } from "@/lib/backButton";
+import { findOverlap } from "@/lib/overlap";
 import { getSeriesTasksFrom, getTasksOnDates } from "@/db/database";
 import { CATEGORY_LABELS, type Category, type ScheduledTask, type SeriesScope } from "@/types";
 
@@ -65,24 +66,6 @@ function shortDate(iso: string): string {
 function toMinutes(time: string): number {
   const [h, m] = time.split(":").map(Number);
   return h * 60 + m;
-}
-
-function findOverlap(
-  start: string,
-  end: string,
-  tasks: ScheduledTask[],
-  excludeId?: string
-): ScheduledTask | null {
-  const s = toMinutes(start);
-  const e = toMinutes(end);
-  if (e <= s) return null;
-  for (const t of tasks) {
-    if (t.id === excludeId) continue;
-    const ts = toMinutes(t.startTime);
-    const te = toMinutes(t.endTime);
-    if (s < te && ts < e) return t;
-  }
-  return null;
 }
 
 export function AddTaskModal({
