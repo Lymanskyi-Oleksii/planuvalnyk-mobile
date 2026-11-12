@@ -18,6 +18,18 @@ export function minutesToTop(min: number): number {
   return (min / 60) * HOUR_HEIGHT;
 }
 
+/** Початок видимої області без задач. */
+export const DEFAULT_START_MINUTES = 6 * 60;
+
+/**
+ * Куди прокрутити сітку: найраніша задача з відступом на годину вище (не вище 00:00),
+ * а якщо задач немає — 06:00.
+ */
+export function initialScrollTop(startMinutes: number[]): number {
+  if (!startMinutes.length) return minutesToTop(DEFAULT_START_MINUTES);
+  return Math.max(0, minutesToTop(Math.min(...startMinutes)) - HOUR_HEIGHT);
+}
+
 /** Положення блока задачі в колонці дня. */
 export function blockRect(startTime: string, endTime: string): { top: number; height: number } {
   const start = timeToMinutes(startTime);

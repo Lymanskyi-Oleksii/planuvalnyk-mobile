@@ -92,6 +92,8 @@ function PlannerApp() {
   const [activeDate, setActiveDate] = useState(TODAY);
   const [activeTab, setActiveTab] = useState<MobileTab>("day");
   const view = useView();
+  // «Сьогодні» в календарі знову веде до першої задачі
+  const [calendarJump, setCalendarJump] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<ScheduledTask | null>(null);
@@ -360,6 +362,7 @@ function PlannerApp() {
           onGoToday={() => {
             setActiveDate(TODAY);
             setWeekViewAnchor(weekDates(TODAY)[3]);
+            setCalendarJump((n) => n + 1);
           }}
         />
       </div>
@@ -372,7 +375,12 @@ function PlannerApp() {
         >
           <div className={onlyOnTab("day")}>
             {view.mode === "calendar" ? (
-              <CalendarView date={activeDate} range={view.range} refreshKey={refreshKey} />
+              <CalendarView
+                date={activeDate}
+                range={view.range}
+                refreshKey={refreshKey}
+                jumpToken={calendarJump}
+              />
             ) : (
               <TodaySchedule
                 date={activeDate}
