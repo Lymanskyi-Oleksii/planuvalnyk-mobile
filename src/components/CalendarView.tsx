@@ -1,11 +1,14 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useCalendarZoom } from "@/hooks/useCalendarZoom";
 import { useRangeTasks } from "@/hooks/useRangeTasks";
-import { dayHeight, initialScrollTop, timeToMinutes } from "@/lib/calendarLayout";
+import { blockRect, dayHeight, initialScrollTop, overlapLanes, timeToMinutes } from "@/lib/calendarLayout";
 import { rangeDates } from "@/lib/calendarRange";
 import { isToday } from "@/lib/date";
+import { CATEGORY_COLORS } from "@/lib/reminderPlan";
 import type { CalendarRange } from "@/lib/settings";
 import { WEEKDAY_SHORT, dayOfMonth, parseISO } from "@/lib/week";
+import type { ScheduledTask, SeriesScope } from "@/types";
+import { CalendarTaskSheet } from "./CalendarTaskSheet";
 
 interface CalendarViewProps {
   date: string;
@@ -15,18 +18,89 @@ interface CalendarViewProps {
   jumpToken: number;
   /** Збережений масштаб (висота години, px). */
   hourHeight: number;
+  onToggleTask: (id: string, done: boolean) => void;
+  /** Задача передається цілком: вона може бути не з активного дня. */
+  onToggleSubtask: (task: ScheduledTask, id: string, done: boolean) => void;
+  /** dayTasks — задачі дня цієї задачі, для перевірки накладок у формі. */
+  onEditTask: (task: ScheduledTask, dayTasks: ScheduledTask[]) => void;
+  onDeleteTask: (task: ScheduledTask, scope: SeriesScope) => void;
 }
 
 const HOURS = Array.from({ length: 24 }, (_, h) => h);
 
+/** Відступ блока від країв колонки й від сусідніх блоків, px. */
+const GAP = 2;
+
+interface TaskBlockProps {
+  task: ScheduledTask;
+  hourHeight: number;
+  lane: number;
+  lanes: number;
+  compact: boolean;
+  onOpen: () => void;
+}
+
+// Блок задачі в колонці дня: залитий кольором категорії, білий текст.
+function TaskBlock({ task, hourHeight, lane, lanes, compact, onOpen }: TaskBlockProps) {
+  const { top, height } = blockRect(task.startTime, task.endTime, hourHeight);
+  const short = timeToMinutes(task.endTime) - timeToMinutes(task.startTime) < 30;
+  // Час — лише для задач від 30 хв і не в режимі «Тиждень»
+  const showTime = !short && !compact;
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className={`absolute z-10 overflow-hidden rounded-md text-left ${
+        task.done ? "bg-done-bg text-done-fg" : "text-white"
+      } ${compact ? "px-1 py-0.5" : "px-1.5 py-0.5"}`}
+      style={{
+        top: top + GAP / 2,
+        height: Math.max(height - GAP, 4),
+        left: `calc(${(lane / lanes) * 100}% + ${GAP}px)`,
+        width: `calc(${100 / lanes}% - ${GAP * 2}px)`,
+        backgroundColor: task.done ? undefined : CATEGORY_COLORS[task.category],
+      }}
+    >
+      <span
+        className={`block font-semibold ${compact ? "text-[10px] leading-tight" : "text-xs leading-snug"} ${
+          short ? "truncate" : "break-words"
+        } ${task.done ? "line-through" : ""}`}
+      >
+        {task.title}
+      </span>
+      {showTime && (
+        <span className="block truncate text-[11px] leading-snug opacity-90">
+          {task.startTime}–{task.endTime}
+        </span>
+      )}
+    </button>
+  );
+}
+
 // Погодинна сітка. Шапка днів — sticky всередині того ж контейнера прокрутки, що й сітка:
 // повзунок звужує обидві однаково, тож колонки шапки й сітки збігаються.
-export function CalendarView({ date, range, refreshKey, jumpToken, hourHeight: savedHourHeight }: CalendarViewProps) {
+export function CalendarView({
+  date,
+  range,
+  refreshKey,
+  jumpToken,
+  hourHeight: savedHourHeight,
+  onToggleTask,
+  onToggleSubtask,
+  onEditTask,
+  onDeleteTask,
+}: CalendarViewProps) {
   const dates = rangeDates(date, range);
   const { tasks, ready } = useRangeTasks(dates, refreshKey);
   const scrollRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
   const { hourHeight, hourHeightRef } = useCalendarZoom(scrollRef, headerRef, savedHourHeight);
+
+  // Відкрита в нижній панелі задача. Береться зі свіжих даних, тож галочки й редагування
+  // одразу видно в панелі; якщо задачу видалили — панель закривається.
+  const [opened, setOpened] = useState<{ id: string; date: string } | null>(null);
+  const openedTask = opened ? (tasks[opened.date] ?? []).find((t) => t.id === opened.id) ?? null : null;
 
   const cols = `44px repeat(${dates.length}, minmax(0, 1fr))`;
 
@@ -120,21 +194,49 @@ export function CalendarView({ date, range, refreshKey, jumpToken, hourHeight: s
                 </span>
               ))}
             </div>
-            {dates.map((d) => (
-              <div
-                key={d}
-                data-date={d}
-                className="relative border-l border-line"
-                style={{
-                  backgroundImage:
-                    "repeating-linear-gradient(to bottom, transparent 0, transparent " +
-                    `${hourHeight - 1}px, rgb(var(--c-line)) ${hourHeight - 1}px, rgb(var(--c-line)) ${hourHeight}px)`,
-                }}
-              />
-            ))}
+            {dates.map((d) => {
+              const dayTasks = tasks[d] ?? [];
+              const lanes = overlapLanes(dayTasks);
+              return (
+                <div
+                  key={d}
+                  data-date={d}
+                  className="relative border-l border-line"
+                  style={{
+                    backgroundImage:
+                      "repeating-linear-gradient(to bottom, transparent 0, transparent " +
+                      `${hourHeight - 1}px, rgb(var(--c-line)) ${hourHeight - 1}px, rgb(var(--c-line)) ${hourHeight}px)`,
+                  }}
+                >
+                  {dayTasks.map((t) => {
+                    const place = lanes.get(t.id) ?? { lane: 0, lanes: 1 };
+                    return (
+                      <TaskBlock
+                        key={t.id}
+                        task={t}
+                        hourHeight={hourHeight}
+                        lane={place.lane}
+                        lanes={place.lanes}
+                        compact={range === 7}
+                        onOpen={() => setOpened({ id: t.id, date: d })}
+                      />
+                    );
+                  })}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
+
+      <CalendarTaskSheet
+        task={openedTask}
+        onClose={() => setOpened(null)}
+        onToggleTask={onToggleTask}
+        onToggleSubtask={onToggleSubtask}
+        onEdit={(t) => onEditTask(t, tasks[t.date] ?? [])}
+        onDelete={onDeleteTask}
+      />
     </section>
   );
 }

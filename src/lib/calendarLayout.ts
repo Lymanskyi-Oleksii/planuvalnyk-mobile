@@ -45,6 +45,57 @@ export function initialScrollTop(startMinutes: number[], hourHeight: number): nu
   return Math.max(0, minutesToTop(Math.min(...startMinutes), hourHeight) - hourHeight);
 }
 
+/** Найменша висота блока, хв. */
+export const MIN_BLOCK_MINUTES = 20;
+
+/** Місце блока по ширині: доріжка lane з lanes у групі, що перетинається. */
+export interface BlockLane {
+  lane: number;
+  lanes: number;
+}
+
+/**
+ * Запасний варіант для старих даних із накладками (нові задачі не перетинаються):
+ * блоки, що перетинаються на екрані, ділять ширину колонки порівну.
+ * Кінець рахується з найменшою висотою блока — щоб не накривали один одного й короткі.
+ */
+export function overlapLanes(
+  items: { id: string; startTime: string; endTime: string }[],
+): Map<string, BlockLane> {
+  const spans = items
+    .map((t) => {
+      const start = timeToMinutes(t.startTime);
+      return { id: t.id, start, end: Math.max(timeToMinutes(t.endTime), start + MIN_BLOCK_MINUTES) };
+    })
+    .sort((a, b) => a.start - b.start || a.end - b.end);
+
+  const result = new Map<string, BlockLane>();
+  let group: { id: string; lane: number }[] = [];
+  let laneEnds: number[] = [];
+  let groupEnd = -1;
+
+  const closeGroup = () => {
+    for (const g of group) result.set(g.id, { lane: g.lane, lanes: laneEnds.length });
+    group = [];
+    laneEnds = [];
+  };
+
+  for (const s of spans) {
+    if (s.start >= groupEnd) closeGroup();
+    let lane = laneEnds.findIndex((end) => end <= s.start);
+    if (lane < 0) {
+      lane = laneEnds.length;
+      laneEnds.push(s.end);
+    } else {
+      laneEnds[lane] = s.end;
+    }
+    group.push({ id: s.id, lane });
+    groupEnd = Math.max(groupEnd, s.end);
+  }
+  closeGroup();
+  return result;
+}
+
 /** Положення блока задачі в колонці дня. Найменша висота — як для 20 хв. */
 export function blockRect(
   startTime: string,
@@ -54,7 +105,7 @@ export function blockRect(
   const start = timeToMinutes(startTime);
   const end = Math.max(timeToMinutes(endTime), start);
   const top = minutesToTop(start, hourHeight);
-  const minHeight = minutesToTop(20, hourHeight);
+  const minHeight = minutesToTop(MIN_BLOCK_MINUTES, hourHeight);
   const height = Math.min(Math.max(minutesToTop(end, hourHeight) - top, minHeight), dayHeight(hourHeight) - top);
   return { top, height };
 }

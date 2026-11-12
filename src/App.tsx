@@ -34,6 +34,7 @@ import {
   isOffline,
   subscribeOffline,
   toggleScheduledTask as setScheduledTaskDone,
+  toggleSubtask as setSubtaskDone,
 } from "./db/database";
 import { subscribeSettings } from "./lib/settings";
 import { SettingsScreen } from "./components/SettingsScreen";
@@ -97,6 +98,8 @@ function PlannerApp() {
   const [modalOpen, setModalOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<ScheduledTask | null>(null);
+  // Задача з календаря може бути не з активного дня: тоді форма перевіряє накладки з її днем
+  const [modalDay, setModalDay] = useState<{ date: string; tasks: ScheduledTask[] } | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const bump = () => setRefreshKey((k) => k + 1);
 
@@ -281,12 +284,14 @@ function PlannerApp() {
   function openCreateModal() {
     if (blockedOffline()) return;
     setEditingTask(null);
+    setModalDay(null);
     setModalOpen(true);
   }
 
-  function openEditModal(task: ScheduledTask) {
+  function openEditModal(task: ScheduledTask, dayTasks?: ScheduledTask[]) {
     if (blockedOffline()) return;
     setEditingTask(task);
+    setModalDay(dayTasks ? { date: task.date, tasks: dayTasks } : null);
     setModalOpen(true);
   }
 
@@ -325,6 +330,18 @@ function PlannerApp() {
 
   async function handleToggleSubtask(id: string, done: boolean) {
     await toggleSubtask(id, done);
+    bump();
+  }
+
+  // Підзадача з календаря: задача може бути з іншого дня, ніж активний,
+  // тому правило «усі підзадачі виконані → задача виконана» рахуємо тут, як у useDayData.
+  async function handleToggleSubtaskOf(task: ScheduledTask, id: string, done: boolean) {
+    if (task.date === activeDate) return handleToggleSubtask(id, done);
+    await setSubtaskDone(id, done);
+    const subtasks = task.subtasks.map((s) => (s.id === id ? { ...s, done } : s));
+    const allDone = subtasks.length > 0 && subtasks.every((s) => s.done);
+    const nextDone = allDone ? true : done ? task.done : false;
+    if (nextDone !== task.done) await setScheduledTaskDone(task.id, nextDone);
     bump();
   }
 
@@ -381,6 +398,10 @@ function PlannerApp() {
                 refreshKey={refreshKey}
                 jumpToken={calendarJump}
                 hourHeight={view.hourHeight}
+                onToggleTask={handleToggleTask}
+                onToggleSubtask={handleToggleSubtaskOf}
+                onEditTask={openEditModal}
+                onDeleteTask={handleDeleteTask}
               />
             ) : (
               <TodaySchedule
@@ -458,8 +479,8 @@ function PlannerApp() {
         onClose={() => setModalOpen(false)}
         onSave={handleSaveTask}
         editingTask={editingTask}
-        existingTasks={scheduledTasks}
-        date={activeDate}
+        existingTasks={modalDay?.tasks ?? scheduledTasks}
+        date={modalDay?.date ?? activeDate}
       />
     </div>
   );
