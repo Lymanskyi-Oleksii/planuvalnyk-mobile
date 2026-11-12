@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Checkbox } from "./Checkbox";
+import { SubtaskList, formSubtask, type FormSubtask } from "./SubtaskList";
 import { Toggle } from "./Toggle";
 import { leadLabel, loadSettings } from "@/lib/settings";
 import { addDays, fromISODate } from "@/lib/date";
@@ -47,14 +47,6 @@ const WEEKDAYS: [number, string][] = [
 
 const MAX_REPEAT_COPIES = 200;
 
-/** Підзадача у формі: key — лише для React (у нової підзадачі ще немає id). */
-type FormSubtask = SubtaskDraft & { key: string };
-
-let nextSubtaskKey = 0;
-function formSubtask(s: SubtaskDraft): FormSubtask {
-  return { ...s, key: `s${nextSubtaskKey++}` };
-}
-
 // Дні повтору після date до until включно, лише позначені дні тижня
 function repeatDatesFor(date: string, until: string, weekdays: number[]): string[] {
   const out: string[] = [];
@@ -94,6 +86,7 @@ export function AddTaskModal({
   const [subtasks, setSubtasks] = useState<FormSubtask[]>([]);
   const [subtaskDraft, setSubtaskDraft] = useState("");
   const subtaskInputRef = useRef<HTMLInputElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
   // null = користувач нічого не міняв, діють загальні налаштування
   const [remindOverride, setRemindOverride] = useState<boolean | null>(null);
   const [leadOverride, setLeadOverride] = useState<number | null>(null);
@@ -210,10 +203,6 @@ export function AddTaskModal({
     subtaskInputRef.current?.focus();
   }
 
-  function removeSubtask(i: number) {
-    setSubtasks((s) => s.filter((_, idx) => idx !== i));
-  }
-
   function handleSubmit(scope: SeriesScope = "one") {
     if (!canSave) return;
     if (scope === "following" && seriesPending) return;
@@ -264,7 +253,7 @@ export function AddTaskModal({
           </button>
         </header>
 
-        <div className="max-h-[70vh] space-y-4 overflow-y-auto px-5 py-4">
+        <div ref={bodyRef} className="max-h-[70vh] space-y-4 overflow-y-auto px-5 py-4">
           <div>
             <label className="mb-1 block text-xs font-medium text-muted">Назва задачі</label>
             <input
@@ -464,26 +453,7 @@ export function AddTaskModal({
               </button>
             </div>
 
-            {subtasks.length > 0 && (
-              <ul className="mt-2 space-y-1.5">
-                {subtasks.map((s, i) => (
-                  <li key={s.key} className="flex items-center gap-2">
-                    {/* Галочку тут лише видно: ставлять її в розкладі, форма done не змінює */}
-                    <Checkbox size="sm" checked={s.done} onChange={() => {}} />
-                    <span className={`flex-1 text-sm ${s.done ? "text-muted line-through" : "text-ink"}`}>{s.title}</span>
-                    <button
-                      onClick={() => removeSubtask(i)}
-                      className="text-muted hover:text-ink"
-                      aria-label="Видалити підзадачу"
-                    >
-                      <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none">
-                        <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                      </svg>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <SubtaskList items={subtasks} onChange={setSubtasks} scrollRef={bodyRef} />
           </div>
 
           {subtasks.length === 0 && (
