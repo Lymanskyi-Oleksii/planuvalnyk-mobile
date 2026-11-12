@@ -101,22 +101,45 @@ object ReminderAlarms {
   /** Ставить будильники на всі нагадування, час яких ще не минув. */
   fun setAll(ctx: Context, list: List<Reminder>) {
     val now = System.currentTimeMillis()
-    list.filter { it.whenMs > now }.forEach { set(ctx, it.id, it.whenMs) }
+    list.filter { it.whenMs > now }.forEach { set(ctx, it.id, it.whenMs, alarmClock = it.snoozed) }
   }
 
-  /** Будильник на нагадування `id` у момент `whenMs`. */
-  fun set(ctx: Context, id: Int, whenMs: Long) {
+  /**
+   * Будильник на нагадування `id` у момент `whenMs`.
+   * alarmClock — для відкладених: setAlarmClock система вважає будильником і не
+   * затримує навіть на HyperOS (Logcat: звичайний точний прийшов на 92 с пізніше,
+   * лише коли відкрили застосунок). Мінус — значок будильника в рядку стану.
+   */
+  fun set(ctx: Context, id: Int, whenMs: Long, alarmClock: Boolean = false) {
     val am = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
     val pi = pendingIntent(ctx, id)
     // Без дозволу на точні будильники (Android 12+) — неточний, але теж у режимі сну
     val exact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || am.canScheduleExactAlarms()
-    if (exact) {
-      am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, whenMs, pi)
-    } else {
-      am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, whenMs, pi)
+    val kind = when {
+      exact && alarmClock -> {
+        am.setAlarmClock(AlarmManager.AlarmClockInfo(whenMs, openAppIntent(ctx)), pi)
+        "будильник"
+      }
+      exact -> {
+        am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, whenMs, pi)
+        "точний"
+      }
+      else -> {
+        am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, whenMs, pi)
+        "неточний"
+      }
     }
-    Log.d(TAG, "set: id=$id на ${java.util.Date(whenMs)}, точний=$exact (SDK ${Build.VERSION.SDK_INT})")
+    Log.d(TAG, "set: id=$id на ${java.util.Date(whenMs)}, $kind (SDK ${Build.VERSION.SDK_INT})")
   }
+
+  // Натискання на значок будильника в рядку стану відкриває застосунок
+  private fun openAppIntent(ctx: Context): PendingIntent =
+    PendingIntent.getActivity(
+      ctx,
+      0,
+      Intent(ctx, MainActivity::class.java).setFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+      PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
 
   /**
    * Новий план із JS замінює попередній. Відкладені нагадування, яких у новому
@@ -147,7 +170,7 @@ object ReminderAlarms {
     val r = list.firstOrNull { it.id == id } ?: return
     val moved = r.copy(whenMs = System.currentTimeMillis() + delayMs, snoozed = true)
     saveNow(ctx, list.map { if (it.id == id) moved else it })
-    set(ctx, id, moved.whenMs)
+    set(ctx, id, moved.whenMs, alarmClock = true)
     Log.d(TAG, "snooze: id=$id до ${java.util.Date(moved.whenMs)}")
   }
 
