@@ -168,10 +168,8 @@ function PlannerApp() {
     try {
       if (editingTask) {
         await updateScheduledTask(editingTask.id, values);
-        toast.success("Задачу оновлено");
       } else {
         await addScheduledTask(values);
-        toast.success("Задачу додано", { message: `${values.startTime}–${values.endTime} · ${values.title}` });
       }
       bump();
     } catch (err) {
@@ -182,7 +180,6 @@ function PlannerApp() {
   async function handleDeleteTask(id: string) {
     try {
       await deleteScheduledTask(id);
-      toast.info("Задачу видалено");
       bump();
     } catch (err) {
       toast.error("Не вдалося видалити задачу", { message: errorText(err) });
