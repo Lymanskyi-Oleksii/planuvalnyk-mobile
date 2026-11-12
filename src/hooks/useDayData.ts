@@ -1,24 +1,27 @@
 import { useCallback, useEffect, useState } from "react";
 import * as db from "@/db/database";
-import type { Category, DailyTask, DayNote, MultiDayNote, ScheduledTask, SeriesScope, SubtaskDraft } from "@/types";
+import type { Category, DailyTask, DayNote, MultiDayNote, MultiDayTask, ScheduledTask, SeriesScope, SubtaskDraft } from "@/types";
 
 export function useDayData(date: string) {
   const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([]);
   const [dailyTasks, setDailyTasks] = useState<DailyTask[]>([]);
+  const [multiDayTasks, setMultiDayTasks] = useState<MultiDayTask[]>([]);
   const [note, setNote] = useState<DayNote>({ date, content: "" });
   const [multiDayNotes, setMultiDayNotes] = useState<MultiDayNote[]>([]);
   const [loading, setLoading] = useState(true);
 
   const reload = useCallback(async () => {
     setLoading(true);
-    const [tasks, daily, dayNote, spanning] = await Promise.all([
+    const [tasks, daily, spanningTasks, dayNote, spanning] = await Promise.all([
       db.getScheduledTasks(date),
       db.getDailyTasks(date),
+      db.getMultiDayTasks(date),
       db.getNote(date),
       db.getMultiDayNotes(date),
     ]);
     setScheduledTasks(tasks);
     setDailyTasks(daily);
+    setMultiDayTasks(spanningTasks);
     setNote(dayNote);
     setMultiDayNotes(spanning);
     setLoading(false);
@@ -74,6 +77,32 @@ export function useDayData(date: string) {
   const deleteDailyTask = useCallback(async (id: string) => {
     await db.deleteDailyTask(id);
     setDailyTasks((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  // Галочка одна на весь діапазон: інші дні прочитають її з бази чи з кешу
+  const toggleMultiDayTask = useCallback(async (id: string, done: boolean) => {
+    await db.toggleMultiDayTask(id, done);
+    setMultiDayTasks((prev) => prev.map((t) => (t.id === id ? { ...t, done } : t)));
+  }, []);
+
+  const editMultiDayTask = useCallback(async (id: string, title: string) => {
+    if (!title.trim()) return;
+    await db.updateMultiDayTask(id, title.trim());
+    setMultiDayTasks((prev) => prev.map((t) => (t.id === id ? { ...t, title: title.trim() } : t)));
+  }, []);
+
+  const addMultiDayTask = useCallback(
+    async (input: { title: string; startDate: string; endDate: string }) => {
+      if (!input.title.trim()) return;
+      await db.createMultiDayTask({ ...input, title: input.title.trim() });
+      await reload();
+    },
+    [reload]
+  );
+
+  const deleteMultiDayTask = useCallback(async (id: string) => {
+    await db.deleteMultiDayTask(id);
+    setMultiDayTasks((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
   const addScheduledTask = useCallback(
@@ -172,6 +201,7 @@ export function useDayData(date: string) {
     loading,
     scheduledTasks,
     dailyTasks,
+    multiDayTasks,
     note,
     multiDayNotes,
     toggleScheduledTask,
@@ -180,6 +210,10 @@ export function useDayData(date: string) {
     editDailyTask,
     addDailyTask,
     deleteDailyTask,
+    toggleMultiDayTask,
+    editMultiDayTask,
+    addMultiDayTask,
+    deleteMultiDayTask,
     addScheduledTask,
     updateScheduledTask,
     deleteScheduledTask,

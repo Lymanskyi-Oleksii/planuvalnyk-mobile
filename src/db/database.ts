@@ -1,6 +1,15 @@
 import { supabase } from "@/lib/supabaseClient";
 import { getCurrentUserId, requireUserId } from "@/lib/session";
-import type { Category, DailyTask, DayNote, MultiDayNote, ScheduledTask, Subtask, SubtaskDraft } from "@/types";
+import type {
+  Category,
+  DailyTask,
+  DayNote,
+  MultiDayNote,
+  MultiDayTask,
+  ScheduledTask,
+  Subtask,
+  SubtaskDraft,
+} from "@/types";
 
 // ---------- Офлайн: збережені на пристрої дні ----------
 // Кожне вдале читання дня запам'ятовуємо в localStorage. Коли мережі немає,
@@ -93,6 +102,7 @@ type OfflineOp =
   | { kind: "scheduledDone"; id: string; done: boolean }
   | { kind: "subtaskDone"; id: string; done: boolean }
   | { kind: "dailyDone"; id: string; done: boolean }
+  | { kind: "multiDayTaskDone"; id: string; done: boolean }
   | { kind: "note"; date: string; content: string };
 
 const QUEUE_PREFIX = "planner-queue-v1:";
@@ -160,6 +170,9 @@ function applyOp(key: string, data: unknown, op: OfflineOp): unknown {
   if (key.startsWith("daily:") && op.kind === "dailyDone" && Array.isArray(data)) {
     return (data as DailyTask[]).map((t) => (t.id === op.id ? { ...t, done: op.done } : t));
   }
+  if (key.startsWith("multitask:") && op.kind === "multiDayTaskDone" && Array.isArray(data)) {
+    return (data as MultiDayTask[]).map((t) => (t.id === op.id ? { ...t, done: op.done } : t));
+  }
   if (op.kind === "note" && key === `note:${op.date}`) {
     return { date: op.date, content: op.content };
   }
@@ -190,6 +203,8 @@ async function sendOp(op: OfflineOp): Promise<void> {
     ({ error } = await supabase.from("subtasks").update({ done: op.done }).eq("id", op.id));
   } else if (op.kind === "dailyDone") {
     ({ error } = await supabase.from("daily_tasks").update({ done: op.done }).eq("id", op.id));
+  } else if (op.kind === "multiDayTaskDone") {
+    ({ error } = await supabase.from("multi_day_tasks").update({ done: op.done }).eq("id", op.id));
   } else {
     ({ error } = await supabase
       .from("notes")
@@ -626,6 +641,69 @@ export async function updateDailyTask(id: string, title: string): Promise<void> 
 
 export async function deleteDailyTask(id: string): Promise<void> {
   const { error } = await supabase.from("daily_tasks").delete().eq("id", id);
+  if (error) throw error;
+}
+
+// ---------- Задачі на кілька днів (Тип 2б) ----------
+
+// Помилка «немає такої таблиці»: міграцію ще не запущено
+export function isMissingTable(error: { code?: string; message?: string } | null, table: string): boolean {
+  if (!error) return false;
+  if (error.code === "42P01" || error.code === "PGRST205") return true;
+  const message = error.message ?? "";
+  return new RegExp(table, "i").test(message) && /does not exist|could not find/i.test(message);
+}
+
+export async function getMultiDayTasks(date: string): Promise<MultiDayTask[]> {
+  const userId = requireUserId();
+  return readWithCache(`multitask:${date}`, [], async () => {
+    const { data, error } = await supabase
+      .from("multi_day_tasks")
+      .select("*")
+      .eq("user_id", userId)
+      .lte("start_date", date)
+      .gte("end_date", date)
+      .order("sort_order", { ascending: true })
+      .order("start_date", { ascending: true });
+    // Без міграції migration_multi_day_tasks.sql таких задач просто немає
+    if (error && isMissingTable(error, "multi_day_tasks")) return [];
+    if (error) throw error;
+    return (data ?? []).map((row: any) => ({
+      id: row.id,
+      title: row.title,
+      done: row.done,
+      startDate: row.start_date,
+      endDate: row.end_date,
+      sortOrder: row.sort_order,
+    }));
+  });
+}
+
+export async function createMultiDayTask(input: { title: string; startDate: string; endDate: string }): Promise<string> {
+  const userId = requireUserId();
+  const { data, error } = await supabase
+    .from("multi_day_tasks")
+    .insert({ user_id: userId, title: input.title, start_date: input.startDate, end_date: input.endDate })
+    .select("id")
+    .single();
+  if (error && isMissingTable(error, "multi_day_tasks")) {
+    throw new Error("У базі ще немає таблиці multi_day_tasks: запустіть migration_multi_day_tasks.sql");
+  }
+  if (error) throw error;
+  return data.id as string;
+}
+
+export async function toggleMultiDayTask(id: string, done: boolean): Promise<void> {
+  await writeOrQueue({ kind: "multiDayTaskDone", id, done });
+}
+
+export async function updateMultiDayTask(id: string, title: string): Promise<void> {
+  const { error } = await supabase.from("multi_day_tasks").update({ title }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteMultiDayTask(id: string): Promise<void> {
+  const { error } = await supabase.from("multi_day_tasks").delete().eq("id", id);
   if (error) throw error;
 }
 

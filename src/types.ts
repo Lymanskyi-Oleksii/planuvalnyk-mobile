@@ -67,6 +67,17 @@ export interface DailyTask {
   sortOrder: number;
 }
 
+// Тип 2б — задача на кілька днів: показується в кожному дні діапазону [startDate, endDate],
+// галочка одна на весь діапазон
+export interface MultiDayTask {
+  id: string;
+  title: string;
+  done: boolean;
+  startDate: string;
+  endDate: string;
+  sortOrder: number;
+}
+
 // Тип 3 — нотатка одного дня: прив'язана до дати, без часу, без checkbox
 export interface DayNote {
   date: string;

@@ -306,11 +306,11 @@ Android потрібен свій Kotlin-код. iOS і комп'ютер лиш
 Етапи по порядку, один етап — один коміт, після кожного `npm run build`.
 
 ### Етап 1. Дані
-- [ ] `src/types.ts`: тип `MultiDayTask` (`id`, `title`, `done`, `startDate`, `endDate`, `sortOrder`).
-- [ ] `src/db/database.ts`: `getMultiDayTasks(date)` через `readWithCache` (ключ `multitask:<date>`);
+- [x] `src/types.ts`: тип `MultiDayTask` (`id`, `title`, `done`, `startDate`, `endDate`, `sortOrder`).
+- [x] `src/db/database.ts`: `getMultiDayTasks(date)` через `readWithCache` (ключ `multitask:<date>`);
   немає таблиці — порожній список. `createMultiDayTask`, `updateMultiDayTask` (назва),
   `deleteMultiDayTask`, `toggleMultiDayTask` — через офлайн-чергу (`multiDayTaskDone`).
-- [ ] `src/hooks/useDayData.ts`: `multiDayTasks` і дії з ними.
+- [x] `src/hooks/useDayData.ts`: `multiDayTasks` і дії з ними.
 
 ### Етап 2. Вкладка «Задачі»
 - [ ] `DailyTasksPanel.tsx`: під час додавання — кнопка «На кілька днів»: форма з назвою
