@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Checkbox } from "./Checkbox";
 import { CategoryBadge } from "./CategoryBadge";
+import { useBackHandler } from "@/lib/backButton";
 import type { ScheduledTask, SeriesScope } from "@/types";
 
 const RAIL_COLORS: Record<string, string> = {
@@ -55,6 +56,8 @@ export function ScheduleRow({ task, onToggleTask, onToggleSubtask, onEdit, onDel
   const [expanded, setExpanded] = useState(true);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const hasSubtasks = task.subtasks.length > 0;
+  // «Назад» скасовує підтвердження видалення
+  useBackHandler(confirmingDelete, () => setConfirmingDelete(false));
 
   // Коли задачу позначено виконаною — згортаємо список підзадач,
   // щоб рядок одразу виглядав завершеним і не займав місце деталями,

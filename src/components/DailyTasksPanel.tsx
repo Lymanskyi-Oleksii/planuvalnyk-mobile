@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useBackHandler } from "@/lib/backButton";
 import type { TouchEvent as ReactTouchEvent } from "react";
 import { Checkbox } from "./Checkbox";
 import type { DailyTask } from "@/types";
@@ -99,6 +100,14 @@ export function DailyTasksPanel({ tasks, onToggle, onAdd, onEdit, onDelete }: Da
     setReordering(false);
     setDrag(null);
   }
+
+  // «Назад» скасовує додавання чи редагування задачі дня і виходить з режиму перестановки
+  useBackHandler(adding, () => {
+    setAdding(false);
+    setDraft("");
+  });
+  useBackHandler(editingId !== null, () => setEditingId(null));
+  useBackHandler(reordering, exitReordering);
 
   // Куди зараз "потрапляє" задача, яку тягнуть, за поточним зсувом.
   const liveIndex = drag

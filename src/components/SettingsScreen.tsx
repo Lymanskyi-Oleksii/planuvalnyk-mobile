@@ -27,6 +27,7 @@ import {
 import { CATEGORY_COLORS, CATEGORY_EMOJI, type PlannedReminder } from "@/lib/reminderPlan";
 import { addDays, toISODate } from "@/lib/date";
 import { toast } from "@/lib/toast";
+import { useBackHandler } from "@/lib/backButton";
 import { Toggle } from "./Toggle";
 
 interface SettingsScreenProps {
@@ -234,6 +235,10 @@ export function SettingsScreen({ open, onClose, onLogout }: SettingsScreenProps)
       .catch(() => setVersion(null)); // відкрито не в Tauri
     return subscribeReminderStatus(setStatus);
   }, [open]);
+
+  // «Назад»: спершу ховаємо форму зміни пароля, потім закриваємо налаштування
+  useBackHandler(open, onClose);
+  useBackHandler(open && pwOpen, () => setPwOpen(false));
 
   if (!open) return null;
 

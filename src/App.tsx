@@ -24,6 +24,7 @@ import {
   takeOpenDate,
 } from "./lib/reminders";
 import { onAppResume } from "./lib/appResume";
+import { initBackButton, setRootBackHandler } from "./lib/backButton";
 import {
   clearOfflineCache,
   flushOfflineQueue,
@@ -227,6 +228,20 @@ function PlannerApp() {
       offResume();
     };
   }, []);
+
+  // «Назад» на Android: вікна й форми закриваються самі (useBackHandler);
+  // з вкладок «Нотатки» і «Задачі» повертаємось на «День», а з «Дня» — вихід.
+  useEffect(() => {
+    void initBackButton();
+  }, []);
+  useEffect(() => {
+    setRootBackHandler(() => {
+      if (activeTab === "day") return false;
+      setActiveTab("day");
+      return true;
+    });
+    return () => setRootBackHandler(null);
+  }, [activeTab]);
 
   // Без мережі можна лише ставити галочки й писати нотатку дня
   function blockedOffline(): boolean {

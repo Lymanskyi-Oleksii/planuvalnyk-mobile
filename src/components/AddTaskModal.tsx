@@ -3,6 +3,7 @@ import { Checkbox } from "./Checkbox";
 import { Toggle } from "./Toggle";
 import { leadLabel, loadSettings } from "@/lib/settings";
 import { addDays, fromISODate } from "@/lib/date";
+import { useBackHandler } from "@/lib/backButton";
 import { getSeriesTasksFrom, getTasksOnDates } from "@/db/database";
 import { CATEGORY_LABELS, type Category, type ScheduledTask, type SeriesScope } from "@/types";
 
@@ -166,6 +167,8 @@ export function AddTaskModal({ open, onClose, onSave, editingTask, existingTasks
     setRepeatWeekdays([fromISODate(date).getDay()]);
     setRepeatUntil(addDays(date, 28));
   }, [open, editingTask, date]);
+
+  useBackHandler(open, onClose);
 
   if (!open) return null;
 

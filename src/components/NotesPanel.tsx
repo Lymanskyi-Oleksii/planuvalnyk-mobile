@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { formatShortDate } from "@/lib/date";
+import { onBeforeExit, useBackHandler } from "@/lib/backButton";
 import type { MultiDayNote } from "@/types";
 
 interface NotesPanelProps {
   date: string;
   content: string;
-  onSave: (content: string) => void;
+  onSave: (content: string) => void | Promise<void>;
   multiDayNotes: MultiDayNote[];
   onAddMultiDayNote: (input: { title: string; content: string; startDate: string; endDate: string }) => void;
   onDeleteMultiDayNote: (id: string) => void;
@@ -30,6 +31,23 @@ export function NotesPanel({
   const [spanEnd, setSpanEnd] = useState(date);
 
   useEffect(() => setValue(content), [content]);
+
+  // «Назад» закриває форму нотатки на кілька днів
+  useBackHandler(addingSpan, () => setAddingSpan(false));
+
+  // Вихід кнопкою «Назад» не має з'їсти текст, який ще чекає збереження
+  const pendingRef = useRef<string | null>(null);
+  useEffect(
+    () =>
+      onBeforeExit(() => {
+        if (pendingRef.current === null) return;
+        if (timer.current) clearTimeout(timer.current);
+        const text = pendingRef.current;
+        pendingRef.current = null;
+        return onSave(text);
+      }),
+    [onSave]
+  );
   useEffect(() => {
     setSpanStart(date);
     setSpanEnd(date);
@@ -37,8 +55,10 @@ export function NotesPanel({
 
   function handleChange(next: string) {
     setValue(next);
+    pendingRef.current = next;
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
+      pendingRef.current = null;
       onSave(next);
       setSavedAt(Date.now());
     }, 600);
