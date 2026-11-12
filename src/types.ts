@@ -45,7 +45,11 @@ export interface ScheduledTask {
   subtasks: Subtask[];
   remind: boolean | null; // null = за загальними налаштуваннями
   remindBeforeMin: number | null; // null = загальне значення
+  seriesId: string | null; // спільний для копій повторюваної задачі; null = не повторюється
 }
+
+// Що змінювати в повторюваній задачі: лише цю копію чи цю й наступні
+export type SeriesScope = "one" | "following";
 
 // Тип 2 — звичайна задача дня: дата, назва, checkbox. Без часу.
 export interface DailyTask {

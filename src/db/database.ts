@@ -26,11 +26,83 @@ function mapScheduledTask(row: any): ScheduledTask {
     subtasks: (row.subtasks ?? []).map(mapSubtask),
     remind: row.remind ?? null,
     remindBeforeMin: row.remind_before_min ?? null,
+    seriesId: row.series_id ?? null,
   };
 }
 
+// Помилка «немає такої колонки»: міграцію ще не запущено
+function isMissingColumn(error: { message?: string } | null, name: string): boolean {
+  return new RegExp(name, "i").test(error?.message ?? "");
+}
+
 function isMissingRemindColumn(error: { message?: string } | null): boolean {
-  return /remind/i.test(error?.message ?? "");
+  return isMissingColumn(error, "remind");
+}
+
+// Вставляє рядки задач і повертає їхні id. Якщо міграції для remind чи series_id
+// ще не запущено, повторює вставку без цих полів.
+async function insertTaskRows(rows: Record<string, unknown>[]): Promise<string[]> {
+  let current = rows;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = await supabase.from("scheduled_tasks").insert(current).select("id");
+    if (!res.error) return (res.data ?? []).map((r: any) => r.id as string);
+    if (isMissingRemindColumn(res.error)) {
+      current = current.map(({ remind, remind_before_min, ...rest }) => rest);
+    } else if (isMissingColumn(res.error, "series_id")) {
+      current = current.map(({ series_id, ...rest }) => rest);
+    } else {
+      throw res.error;
+    }
+  }
+  throw new Error("Не вдалося зберегти задачу");
+}
+
+// Оновлює поля кількох задач і перестворює їхні підзадачі
+async function updateTaskRows(
+  ids: string[],
+  input: {
+    startTime: string;
+    endTime: string;
+    title: string;
+    category: Category;
+    details?: string | null;
+    subtasks: string[];
+    remind?: boolean | null;
+    remindBeforeMin?: number | null;
+  }
+): Promise<void> {
+  if (ids.length === 0) return;
+  const base = {
+    start_time: input.startTime,
+    end_time: input.endTime,
+    title: input.title,
+    category: input.category,
+    details: input.details ?? null,
+  };
+  let { error } = await supabase
+    .from("scheduled_tasks")
+    .update({
+      ...base,
+      remind: input.remind ?? null,
+      remind_before_min: input.remindBeforeMin ?? null,
+    })
+    .in("id", ids);
+  if (error && isMissingRemindColumn(error)) {
+    ({ error } = await supabase.from("scheduled_tasks").update(base).in("id", ids));
+  }
+  if (error) throw error;
+
+  // Найпростіший надійний спосіб синхронізувати підзадачі — перестворити їх
+  const { error: delErr } = await supabase.from("subtasks").delete().in("task_id", ids);
+  if (delErr) throw delErr;
+
+  const rows = ids.flatMap((taskId) =>
+    input.subtasks.map((title, i) => ({ task_id: taskId, title, sort_order: i }))
+  );
+  if (rows.length > 0) {
+    const { error: insErr } = await supabase.from("subtasks").insert(rows);
+    if (insErr) throw insErr;
+  }
 }
 
 // ---------- Заплановані задачі (Тип 1) ----------
@@ -58,28 +130,122 @@ export async function createScheduledTask(input: {
   remind?: boolean | null;
   remindBeforeMin?: number | null;
 }): Promise<string> {
-  const userId = requireUserId();
-  const base = {
+  const [id] = await insertTaskRows([taskRow(requireUserId(), input.date, input)]);
+  return id;
+}
+
+function taskRow(
+  userId: string,
+  date: string,
+  input: {
+    startTime: string;
+    endTime: string;
+    title: string;
+    category: Category;
+    details?: string | null;
+    remind?: boolean | null;
+    remindBeforeMin?: number | null;
+  },
+  seriesId?: string
+): Record<string, unknown> {
+  const row: Record<string, unknown> = {
     user_id: userId,
-    date: input.date,
+    date,
     start_time: input.startTime,
     end_time: input.endTime,
     title: input.title,
     category: input.category,
     details: input.details ?? null,
   };
-  // Поля нагадування надсилаємо лише коли вони задані. Якщо міграцію
-  // migration_reminders.sql ще не запущено, зберігаємо задачу без них.
-  const withRemind: Record<string, unknown> = { ...base };
-  if (input.remind != null) withRemind.remind = input.remind;
-  if (input.remindBeforeMin != null) withRemind.remind_before_min = input.remindBeforeMin;
+  // Поля нагадування й серії надсилаємо лише коли вони задані. Якщо міграцій
+  // ще не запущено, insertTaskRows збереже задачу без них.
+  if (input.remind != null) row.remind = input.remind;
+  if (input.remindBeforeMin != null) row.remind_before_min = input.remindBeforeMin;
+  if (seriesId) row.series_id = seriesId;
+  return row;
+}
 
-  let res = await supabase.from("scheduled_tasks").insert(withRemind).select("id").single();
-  if (res.error && isMissingRemindColumn(res.error)) {
-    res = await supabase.from("scheduled_tasks").insert(base).select("id").single();
+// Повторювана задача: однакові копії на кожну з дат зі спільним series_id
+export async function createScheduledTaskSeries(
+  input: {
+    startTime: string;
+    endTime: string;
+    title: string;
+    category: Category;
+    details?: string | null;
+    subtasks: string[];
+    remind?: boolean | null;
+    remindBeforeMin?: number | null;
+  },
+  dates: string[]
+): Promise<void> {
+  const userId = requireUserId();
+  const seriesId = crypto.randomUUID();
+  const ids = await insertTaskRows(dates.map((d) => taskRow(userId, d, input, seriesId)));
+  const rows = ids.flatMap((taskId) =>
+    input.subtasks.map((title, i) => ({ task_id: taskId, title, sort_order: i }))
+  );
+  if (rows.length > 0) {
+    const { error } = await supabase.from("subtasks").insert(rows);
+    if (error) throw error;
   }
-  if (res.error) throw res.error;
-  return res.data!.id as string;
+}
+
+// Задачі на кілька дат одразу — для перевірки накладок у повторюваній задачі
+export async function getTasksOnDates(dates: string[]): Promise<ScheduledTask[]> {
+  if (dates.length === 0) return [];
+  const userId = requireUserId();
+  const { data, error } = await supabase
+    .from("scheduled_tasks")
+    .select("*")
+    .eq("user_id", userId)
+    .in("date", dates);
+  if (error) throw error;
+  return (data ?? []).map(mapScheduledTask);
+}
+
+// Копії серії, починаючи з дати fromDate (включно)
+export async function getSeriesTasksFrom(seriesId: string, fromDate: string): Promise<ScheduledTask[]> {
+  const userId = requireUserId();
+  const { data, error } = await supabase
+    .from("scheduled_tasks")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("series_id", seriesId)
+    .gte("date", fromDate);
+  if (error) throw error;
+  return (data ?? []).map(mapScheduledTask);
+}
+
+export async function updateScheduledTaskSeries(
+  seriesId: string,
+  fromDate: string,
+  input: {
+    startTime: string;
+    endTime: string;
+    title: string;
+    category: Category;
+    details?: string | null;
+    subtasks: string[];
+    remind?: boolean | null;
+    remindBeforeMin?: number | null;
+  },
+  skipIds: string[] = []
+): Promise<void> {
+  const tasks = await getSeriesTasksFrom(seriesId, fromDate);
+  const ids = tasks.map((t) => t.id).filter((id) => !skipIds.includes(id));
+  await updateTaskRows(ids, input);
+}
+
+export async function deleteScheduledTaskSeries(seriesId: string, fromDate: string): Promise<void> {
+  const userId = requireUserId();
+  const { error } = await supabase
+    .from("scheduled_tasks")
+    .delete()
+    .eq("user_id", userId)
+    .eq("series_id", seriesId)
+    .gte("date", fromDate);
+  if (error) throw error;
 }
 
 export async function toggleScheduledTask(id: string, done: boolean): Promise<void> {
@@ -100,35 +266,7 @@ export async function updateScheduledTask(
     remindBeforeMin?: number | null;
   }
 ): Promise<void> {
-  const base = {
-    start_time: input.startTime,
-    end_time: input.endTime,
-    title: input.title,
-    category: input.category,
-    details: input.details ?? null,
-  };
-  let { error } = await supabase
-    .from("scheduled_tasks")
-    .update({
-      ...base,
-      remind: input.remind ?? null,
-      remind_before_min: input.remindBeforeMin ?? null,
-    })
-    .eq("id", id);
-  if (error && isMissingRemindColumn(error)) {
-    ({ error } = await supabase.from("scheduled_tasks").update(base).eq("id", id));
-  }
-  if (error) throw error;
-
-  // Найпростіший надійний спосіб синхронізувати підзадачі — перестворити їх
-  const { error: delErr } = await supabase.from("subtasks").delete().eq("task_id", id);
-  if (delErr) throw delErr;
-
-  if (input.subtasks.length > 0) {
-    const rows = input.subtasks.map((title, i) => ({ task_id: id, title, sort_order: i }));
-    const { error: insErr } = await supabase.from("subtasks").insert(rows);
-    if (insErr) throw insErr;
-  }
+  await updateTaskRows([id], input);
 }
 
 export async function deleteScheduledTask(id: string): Promise<void> {
