@@ -4,28 +4,74 @@ import {
   cancelAll,
   createChannel,
   isPermissionGranted,
+  removeChannel,
   requestPermission,
   sendNotification,
 } from "@tauri-apps/plugin-notification";
 import { platform } from "@tauri-apps/plugin-os";
 import { supabase } from "./supabaseClient";
 import { requireUserId } from "./session";
-import { addDays, fromISODate, toISODate } from "./date";
-import { loadSettings } from "./settings";
+import { addDays, toISODate } from "./date";
+import { loadSettings, type AlertMode } from "./settings";
+import { buildPlan, toCategory, type PlanTask, type PlannedReminder } from "./reminderPlan";
+import { toast } from "./toast";
 
 // Нагадування — локальні сповіщення телефону, заплановані наперед на найближчі
 // дні. Вони спрацьовують і без інтернету та без відкритого застосунку.
 // Перепланування відбувається при відкритті застосунку, зміні задач і налаштувань.
 //
-// Що саме нагадувати, вирішують налаштування (екран «Налаштування») і поля
-// самої задачі: remind (так/ні) та remind_before_min (за скільки хвилин).
-// Якщо поле задачі порожнє (null), береться загальне налаштування.
+// Що саме нагадувати, вирішує план (lib/reminderPlan.ts) за налаштуваннями
+// й полями самої задачі. Цей файл лише доставляє план:
+//   • на телефоні — системними сповіщеннями;
+//   • на комп'ютері — картками всередині застосунку, поки він відкритий.
 
-const CHANNEL_ID = "planner-reminders";
 const DAYS_AHEAD = 7;
 const MAX_NOTIFICATIONS = 60; // iOS тримає не більше 64 запланованих
-const SNACK_BEFORE_MIN = 60; // перекус за годину до вечірнього тренування
-const POST_MIN = 3; // пульс через 3 хв після заняття
+const SMALL_ICON = "ic_notification"; // res/drawable/ic_notification.xml
+const ACCENT = "#2F6FED";
+
+// Канали Android. Звук і вібрацію каналу після створення змінити не можна,
+// тому на кожен режим свій канал, а сповіщення просто обирає потрібний.
+const LEGACY_CHANNEL_ID = "planner-reminders";
+const CHANNEL_SILENT = "planner-v2-silent";
+const CHANNEL_BY_MODE: Record<AlertMode, string> = {
+  full: "planner-v2-full",
+  sound: "planner-v2-sound",
+  silent: CHANNEL_SILENT,
+};
+
+export type ReminderState =
+  | "idle" // ще не планували
+  | "scheduled" // системні сповіщення заплановано
+  | "inapp" // пристрій без системних сповіщень: нагадуємо всередині застосунку
+  | "off" // вимкнено головним вимикачем
+  | "denied" // немає дозволу на сповіщення
+  | "error";
+
+export interface ReminderStatus {
+  state: ReminderState;
+  plan: PlannedReminder[]; // найближчі нагадування, відсортовані за часом
+  updatedAt: number | null;
+}
+
+let status: ReminderStatus = { state: "idle", plan: [], updatedAt: null };
+const statusListeners = new Set<(s: ReminderStatus) => void>();
+
+function publish(state: ReminderState, plan: PlannedReminder[]) {
+  status = { state, plan, updatedAt: Date.now() };
+  statusListeners.forEach((cb) => cb(status));
+}
+
+export function getReminderStatus(): ReminderStatus {
+  return status;
+}
+
+export function subscribeReminderStatus(cb: (s: ReminderStatus) => void): () => void {
+  statusListeners.add(cb);
+  return () => {
+    statusListeners.delete(cb);
+  };
+}
 
 type Row = {
   id: string;
@@ -40,13 +86,6 @@ type Row = {
   remind_before_min?: number | null;
 };
 
-function at(date: string, time: string, shiftMin = 0): Date {
-  const d = fromISODate(date);
-  const [h, m] = time.split(":").map(Number);
-  d.setHours(h, m + shiftMin, 0, 0);
-  return d;
-}
-
 // Стабільне число-ідентифікатор для сповіщення (Android/iOS приймають int32).
 function notificationId(key: string): number {
   let h = 2166136261;
@@ -55,10 +94,6 @@ function notificationId(key: string): number {
     h = Math.imul(h, 16777619);
   }
   return (h >>> 0) & 0x7fffffff;
-}
-
-function firstLine(details: string | null): string {
-  return (details ?? "").split("\n")[0].trim();
 }
 
 async function isMobile(): Promise<boolean> {
@@ -90,39 +125,127 @@ export async function requestNotificationPermission(): Promise<boolean> {
   }
 }
 
-async function ensureChannel(): Promise<void> {
+let channelsReady = false;
+
+async function ensureChannels(): Promise<void> {
+  if (channelsReady) return;
   await createChannel({
-    id: CHANNEL_ID,
-    name: "Нагадування планувальника",
+    id: CHANNEL_BY_MODE.full,
+    name: "Нагадування: звук і вібрація",
+    description: "Нагадування про задачі зі звуком і вібрацією",
     importance: Importance.High,
     vibration: true,
+    lights: true,
+    lightColor: ACCENT,
+  });
+  await createChannel({
+    id: CHANNEL_BY_MODE.sound,
+    name: "Нагадування: лише звук",
+    description: "Нагадування про задачі зі звуком, без вібрації",
+    importance: Importance.High,
+    vibration: false,
+  });
+  await createChannel({
+    id: CHANNEL_SILENT,
+    name: "Нагадування: без звуку",
+    description: "Тихі години та режим «Без звуку»",
+    importance: Importance.Low,
+    vibration: false,
+  });
+  // Канал попередньої версії більше не використовується
+  await removeChannel(LEGACY_CHANNEL_ID).catch(() => {});
+  channelsReady = true;
+}
+
+function deliver(p: PlannedReminder, mode: AlertMode, when: Date = p.when): void {
+  sendNotification({
+    id: notificationId(p.key),
+    channelId: p.silent ? CHANNEL_SILENT : CHANNEL_BY_MODE[mode],
+    title: p.title,
+    body: p.body,
+    // Android показує або розгорнутий текст, або список рядків
+    largeBody: p.largeBody,
+    inboxLines: p.largeBody ? undefined : p.lines,
+    icon: SMALL_ICON,
+    iconColor: p.color,
+    silent: p.silent,
+    autoCancel: true,
+    schedule: Schedule.at(when, false, true),
   });
 }
 
-/** Тестове сповіщення, яке прийде через 10 секунд. Повертає false, якщо не вдалося. */
-export async function sendTestNotification(): Promise<boolean> {
+export type TestResult = "scheduled" | "inapp" | "denied" | "failed";
+
+const TEST_REMINDER: PlannedReminder = {
+  key: "test",
+  kind: "pre",
+  when: new Date(0),
+  title: "🏃 Тренування",
+  body: "Через 15 хв · 18:00–19:00",
+  largeBody: "Через 15 хв · 18:00–19:00\nТак виглядатимуть нагадування про ваші задачі.",
+  color: "#F97316",
+  silent: false,
+  date: "",
+};
+
+/** Тестове сповіщення: на телефоні прийде через 5 секунд, на комп'ютері з'явиться одразу в застосунку. */
+export async function sendTestNotification(): Promise<TestResult> {
   try {
-    if (!(await requestNotificationPermission())) return false;
-    await ensureChannel();
-    sendNotification({
-      id: notificationId("test"),
-      channelId: CHANNEL_ID,
-      title: "Тестове нагадування",
-      body: "Якщо ви це бачите, нагадування працюють.",
-      schedule: Schedule.at(new Date(Date.now() + 10_000), false, true),
-    });
-    return true;
+    if (!(await isMobile())) {
+      showInApp(TEST_REMINDER, 8000);
+      return "inapp";
+    }
+    if (!(await requestNotificationPermission())) return "denied";
+    await ensureChannels();
+    const settings = loadSettings();
+    deliver(
+      { ...TEST_REMINDER, silent: settings.alertMode === "silent" },
+      settings.alertMode,
+      new Date(Date.now() + 5_000)
+    );
+    return "scheduled";
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error("Тестове сповіщення не вдалося:", err);
-    return false;
+    return "failed";
   }
 }
+
+// ── Нагадування всередині застосунку (комп'ютер) ─────────────────────────────
+
+const MAX_TIMEOUT = 2_000_000_000; // setTimeout не приймає більше ~24 діб
+let inAppTimer: number | undefined;
+
+function showInApp(p: PlannedReminder, duration = 0): void {
+  toast.reminder(p.title, { message: p.largeBody ?? p.body, color: p.color, duration });
+}
+
+function armInApp(plan: PlannedReminder[]): void {
+  window.clearTimeout(inAppTimer);
+  inAppTimer = undefined;
+  const next = plan[0];
+  if (!next) return;
+
+  const wait = next.when.getTime() - Date.now();
+  inAppTimer = window.setTimeout(
+    () => {
+      if (Date.now() < next.when.getTime() - 1_000) {
+        armInApp(plan); // таймер спрацював раніше (дуже довге очікування): чекаємо далі
+        return;
+      }
+      showInApp(next);
+      armInApp(plan.slice(1));
+    },
+    Math.min(Math.max(wait, 0), MAX_TIMEOUT)
+  );
+}
+
+// ── Планування ───────────────────────────────────────────────────────────────
 
 const FULL_COLUMNS = "id, date, start_time, end_time, title, category, details, done, remind, remind_before_min";
 const BASE_COLUMNS = "id, date, start_time, end_time, title, category, details, done";
 
-async function fetchRows(userId: string, from: string, to: string): Promise<Row[]> {
+async function fetchTasks(userId: string, from: string, to: string): Promise<PlanTask[]> {
   const run = (columns: string) =>
     supabase
       .from("scheduled_tasks")
@@ -139,89 +262,62 @@ async function fetchRows(userId: string, from: string, to: string): Promise<Row[
     res = await run(BASE_COLUMNS);
   }
   if (res.error) throw res.error;
-  return (res.data ?? []) as unknown as Row[];
+
+  return ((res.data ?? []) as unknown as Row[]).map((r) => ({
+    id: r.id,
+    date: r.date,
+    startTime: r.start_time.slice(0, 5),
+    endTime: r.end_time.slice(0, 5),
+    title: r.title,
+    category: toCategory(r.category),
+    details: r.details,
+    done: r.done,
+    remind: r.remind ?? null,
+    remindBeforeMin: r.remind_before_min ?? null,
+  }));
 }
 
 async function doReschedule(): Promise<void> {
   try {
-    if (!(await isMobile())) return;
-
+    const mobile = await isMobile();
     const settings = loadSettings();
+
     if (!settings.enabled) {
-      await cancelAll(); // головний вимикач: прибираємо всі заплановані
+      armInApp([]);
+      if (mobile) await cancelAll(); // головний вимикач: прибираємо всі заплановані
+      publish("off", []);
       return;
     }
-    if (!(await requestNotificationPermission())) return;
 
     const userId = requireUserId();
     const today = toISODate(new Date());
-    const rows = await fetchRows(userId, today, addDays(today, DAYS_AHEAD));
+    const tasks = await fetchTasks(userId, today, addDays(today, DAYS_AHEAD));
+    const plan = buildPlan(tasks, settings, new Date()).slice(0, MAX_NOTIFICATIONS);
 
-    await ensureChannel();
+    if (!mobile) {
+      armInApp(plan);
+      publish("inapp", plan);
+      return;
+    }
+
+    if (!(await requestNotificationPermission())) {
+      publish("denied", plan);
+      return;
+    }
+
+    await ensureChannels();
 
     // Спершу прибираємо старі, потім ставимо актуальні: так видалені
     // або перенесені задачі не залишають «привидів».
     await cancelAll();
+    for (const p of plan) deliver(p, settings.alertMode);
 
-    const now = Date.now();
-    const planned: { id: number; when: Date; title: string; body: string }[] = [];
-
-    for (const t of rows) {
-      if (t.done) continue;
-
-      const wanted = t.remind ?? settings.categories.includes(t.category as never);
-      if (!wanted) continue;
-
-      const lead = t.remind_before_min ?? settings.leadMinutes;
-      const start = t.start_time.slice(0, 5);
-      const end = t.end_time.slice(0, 5);
-      const hint = firstLine(t.details);
-
-      planned.push({
-        id: notificationId(`${t.id}:pre`),
-        when: at(t.date, start, -lead),
-        title: lead <= 0 ? `Зараз: ${t.title}` : `Через ${lead} хв: ${t.title}`,
-        body: `${start}–${end}. ${hint}`.trim(),
-      });
-
-      if (t.category === "sport") {
-        if (settings.snack && Number(start.slice(0, 2)) >= 17) {
-          planned.push({
-            id: notificationId(`${t.id}:snack`),
-            when: at(t.date, start, -SNACK_BEFORE_MIN),
-            title: "Перекус перед тренуванням",
-            body: "Яблуко або нежирний йогурт. Нічого важкого за 45–60 хв до заняття.",
-          });
-        }
-        if (settings.afterWorkoutPulse) {
-          planned.push({
-            id: notificationId(`${t.id}:post`),
-            when: at(t.date, end, POST_MIN),
-            title: "Виміряйте пульс",
-            body: "Через 3 хв після заняття пульс має бути нижче 100. Відмітьте виконане в застосунку.",
-          });
-        }
-      }
-    }
-
-    const upcoming = planned
-      .filter((p) => p.when.getTime() > now + 5_000)
-      .sort((a, b) => a.when.getTime() - b.when.getTime())
-      .slice(0, MAX_NOTIFICATIONS);
-
-    for (const p of upcoming) {
-      sendNotification({
-        id: p.id,
-        channelId: CHANNEL_ID,
-        title: p.title,
-        body: p.body,
-        schedule: Schedule.at(p.when, false, true),
-      });
-    }
+    publish("scheduled", plan);
   } catch (err) {
     // Нагадування не мають ламати застосунок
     // eslint-disable-next-line no-console
     console.error("Не вдалося запланувати нагадування:", err);
+    publish("error", status.plan);
   }
 }
 

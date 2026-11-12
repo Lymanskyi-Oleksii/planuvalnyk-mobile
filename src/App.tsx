@@ -19,6 +19,8 @@ import { useHorizontalSwipe } from "./lib/useSwipe";
 import { rescheduleReminders } from "./lib/reminders";
 import { subscribeSettings } from "./lib/settings";
 import { SettingsScreen } from "./components/SettingsScreen";
+import { Toaster } from "./components/Toaster";
+import { toast } from "./lib/toast";
 import type { ScheduledTask } from "./types";
 
 const TODAY = toISODate(new Date());
@@ -39,19 +41,30 @@ export default function App() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
+  let screen: React.ReactNode;
   if (session === undefined) {
-    return (
+    screen = (
       <div className="flex h-screen items-center justify-center bg-canvas text-sm text-muted">
         Завантаження...
       </div>
     );
+  } else if (!session) {
+    screen = <AuthScreen onAuthenticated={() => {}} />;
+  } else {
+    screen = <PlannerApp />;
   }
 
-  if (!session) {
-    return <AuthScreen onAuthenticated={() => {}} />;
-  }
+  return (
+    <>
+      {screen}
+      <Toaster />
+    </>
+  );
+}
 
-  return <PlannerApp />;
+function errorText(err: unknown): string {
+  const message = (err as { message?: unknown } | null)?.message;
+  return typeof message === "string" && message ? message : "Перевірте з'єднання з інтернетом і спробуйте ще раз.";
 }
 
 function PlannerApp() {
@@ -152,17 +165,28 @@ function PlannerApp() {
     remind: boolean | null;
     remindBeforeMin: number | null;
   }) {
-    if (editingTask) {
-      await updateScheduledTask(editingTask.id, values);
-    } else {
-      await addScheduledTask(values);
+    try {
+      if (editingTask) {
+        await updateScheduledTask(editingTask.id, values);
+        toast.success("Задачу оновлено");
+      } else {
+        await addScheduledTask(values);
+        toast.success("Задачу додано", { message: `${values.startTime}–${values.endTime} · ${values.title}` });
+      }
+      bump();
+    } catch (err) {
+      toast.error("Не вдалося зберегти задачу", { message: errorText(err) });
     }
-    bump();
   }
 
   async function handleDeleteTask(id: string) {
-    await deleteScheduledTask(id);
-    bump();
+    try {
+      await deleteScheduledTask(id);
+      toast.info("Задачу видалено");
+      bump();
+    } catch (err) {
+      toast.error("Не вдалося видалити задачу", { message: errorText(err) });
+    }
   }
 
   async function handleToggleTask(id: string, done: boolean) {
@@ -254,7 +278,7 @@ function PlannerApp() {
 
       <MobileTabs active={activeTab} onChange={setActiveTab} />
 
-      <SettingsScreen open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <SettingsScreen open={settingsOpen} onClose={() => setSettingsOpen(false)} onLogout={handleLogout} />
 
       <AddTaskModal
         open={modalOpen}
