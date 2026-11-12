@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabaseClient";
-import { requireUserId } from "@/lib/session";
+import { getCurrentUserId, requireUserId } from "@/lib/session";
 import type { Category, DailyTask, DayNote, MultiDayNote, ScheduledTask, Subtask } from "@/types";
 
 // ---------- Офлайн: збережені на пристрої дні ----------
@@ -81,10 +81,159 @@ export function subscribeOffline(fn: (value: boolean) => void): () => void {
   };
 }
 
+if (typeof window !== "undefined") {
+  window.addEventListener("offline", () => setOffline(true));
+}
+
+// ---------- Офлайн: черга змін ----------
+// Без мережі можна лише ставити галочки й писати нотатку дня. Такі зміни
+// лягають у чергу в localStorage і надсилаються, коли з'явиться інтернет.
+
+type OfflineOp =
+  | { kind: "scheduledDone"; id: string; done: boolean }
+  | { kind: "subtaskDone"; id: string; done: boolean }
+  | { kind: "dailyDone"; id: string; done: boolean }
+  | { kind: "note"; date: string; content: string };
+
+const QUEUE_PREFIX = "planner-queue-v1:";
+
+function queueKey(): string {
+  return QUEUE_PREFIX + requireUserId();
+}
+
+// Одна й та сама задача чи нотатка — у черзі лишається тільки остання зміна
+function opTarget(op: OfflineOp): string {
+  return op.kind === "note" ? `note:${op.date}` : `${op.kind}:${op.id}`;
+}
+
+function readQueue(): OfflineOp[] {
+  try {
+    return JSON.parse(localStorage.getItem(queueKey()) ?? "[]") as OfflineOp[];
+  } catch {
+    return [];
+  }
+}
+
+function writeQueue(queue: OfflineOp[]) {
+  try {
+    if (queue.length === 0) localStorage.removeItem(queueKey());
+    else localStorage.setItem(queueKey(), JSON.stringify(queue));
+  } catch {
+    // нічого
+  }
+}
+
+function enqueue(op: OfflineOp) {
+  writeQueue([...readQueue().filter((o) => opTarget(o) !== opTarget(op)), op]);
+}
+
+function dropQueuedTarget(op: OfflineOp) {
+  const queue = readQueue();
+  const rest = queue.filter((o) => opTarget(o) !== opTarget(op));
+  if (rest.length !== queue.length) writeQueue(rest);
+}
+
+function dropQueuedExact(op: OfflineOp) {
+  const text = JSON.stringify(op);
+  writeQueue(readQueue().filter((o) => JSON.stringify(o) !== text));
+}
+
+export function pendingOfflineCount(): number {
+  return getCurrentUserId() ? readQueue().length : 0;
+}
+
+// Накладає одну зміну на збережені дані дня (ключ — як у readWithCache)
+function applyOp(key: string, data: unknown, op: OfflineOp): unknown {
+  if (key.startsWith("scheduled:") && Array.isArray(data)) {
+    const tasks = data as ScheduledTask[];
+    if (op.kind === "scheduledDone") {
+      return tasks.map((t) => (t.id === op.id ? { ...t, done: op.done } : t));
+    }
+    if (op.kind === "subtaskDone") {
+      return tasks.map((t) =>
+        t.subtasks.some((s) => s.id === op.id)
+          ? { ...t, subtasks: t.subtasks.map((s) => (s.id === op.id ? { ...s, done: op.done } : s)) }
+          : t
+      );
+    }
+  }
+  if (key.startsWith("daily:") && op.kind === "dailyDone" && Array.isArray(data)) {
+    return (data as DailyTask[]).map((t) => (t.id === op.id ? { ...t, done: op.done } : t));
+  }
+  if (op.kind === "note" && key === `note:${op.date}`) {
+    return { date: op.date, content: op.content };
+  }
+  return data;
+}
+
+// Ще не надіслані зміни поверх даних (свіжих із бази чи збережених)
+function overlayQueue<T>(key: string, data: T): T {
+  return readQueue().reduce<unknown>((d, op) => applyOp(key, d, op), data) as T;
+}
+
+// Оновити збережені дні, щоб без мережі показувалось те, що користувач бачив
+function patchCache(op: OfflineOp) {
+  try {
+    const store = readCacheStore();
+    for (const key of Object.keys(store)) store[key].data = applyOp(key, store[key].data, op);
+    localStorage.setItem(cacheKey(), JSON.stringify(store));
+  } catch {
+    // нічого
+  }
+}
+
+async function sendOp(op: OfflineOp): Promise<void> {
+  let error: unknown = null;
+  if (op.kind === "scheduledDone") {
+    ({ error } = await supabase.from("scheduled_tasks").update({ done: op.done }).eq("id", op.id));
+  } else if (op.kind === "subtaskDone") {
+    ({ error } = await supabase.from("subtasks").update({ done: op.done }).eq("id", op.id));
+  } else if (op.kind === "dailyDone") {
+    ({ error } = await supabase.from("daily_tasks").update({ done: op.done }).eq("id", op.id));
+  } else {
+    ({ error } = await supabase
+      .from("notes")
+      .upsert({ user_id: requireUserId(), date: op.date, content: op.content }, { onConflict: "user_id,date" }));
+  }
+  if (error) throw error;
+}
+
+// Записати в базу; без мережі — поставити в чергу
+async function writeOrQueue(op: OfflineOp): Promise<void> {
+  patchCache(op);
+  try {
+    await sendOp(op);
+    dropQueuedTarget(op); // старіша зміна з черги вже не актуальна
+  } catch (err) {
+    if (!isNetworkError(err)) throw err;
+    enqueue(op);
+    setOffline(true);
+  }
+}
+
+// Надіслати чергу по порядку. Повертає, скільки змін записано.
+// Без мережі зупиняється й лишає решту; інші помилки (напр. задачу вже видалено) пропускає.
+export async function flushOfflineQueue(): Promise<number> {
+  if (!getCurrentUserId()) return 0;
+  let sent = 0;
+  for (const op of readQueue()) {
+    try {
+      await sendOp(op);
+      sent++;
+    } catch (err) {
+      if (isNetworkError(err)) break;
+      // eslint-disable-next-line no-console
+      console.error("Зміну з офлайн-черги не записано:", err);
+    }
+    dropQueuedExact(op);
+  }
+  return sent;
+}
+
 // Читає з бази й запам'ятовує; без мережі віддає збережене (або порожнє значення)
 async function readWithCache<T>(key: string, empty: T, fetcher: () => Promise<T>): Promise<T> {
   try {
-    const data = await fetcher();
+    const data = overlayQueue(key, await fetcher());
     writeCache(key, data);
     setOffline(false);
     return data;
@@ -92,7 +241,7 @@ async function readWithCache<T>(key: string, empty: T, fetcher: () => Promise<T>
     if (!isNetworkError(err)) throw err;
     setOffline(true);
     const saved = readCacheStore()[key];
-    return saved ? (saved.data as T) : empty;
+    return overlayQueue(key, saved ? (saved.data as T) : empty);
   }
 }
 
@@ -345,8 +494,7 @@ export async function deleteScheduledTaskSeries(seriesId: string, fromDate: stri
 }
 
 export async function toggleScheduledTask(id: string, done: boolean): Promise<void> {
-  const { error } = await supabase.from("scheduled_tasks").update({ done }).eq("id", id);
-  if (error) throw error;
+  await writeOrQueue({ kind: "scheduledDone", id, done });
 }
 
 export async function updateScheduledTask(
@@ -383,8 +531,7 @@ export async function addSubtask(taskId: string, title: string): Promise<string>
 }
 
 export async function toggleSubtask(id: string, done: boolean): Promise<void> {
-  const { error } = await supabase.from("subtasks").update({ done }).eq("id", id);
-  if (error) throw error;
+  await writeOrQueue({ kind: "subtaskDone", id, done });
 }
 
 // ---------- Задачі дня (Тип 2) ----------
@@ -421,8 +568,7 @@ export async function addDailyTask(date: string, title: string): Promise<string>
 }
 
 export async function toggleDailyTask(id: string, done: boolean): Promise<void> {
-  const { error } = await supabase.from("daily_tasks").update({ done }).eq("id", id);
-  if (error) throw error;
+  await writeOrQueue({ kind: "dailyDone", id, done });
 }
 
 export async function updateDailyTask(id: string, title: string): Promise<void> {
@@ -452,11 +598,7 @@ export async function getNote(date: string): Promise<DayNote> {
 }
 
 export async function saveNote(date: string, content: string): Promise<void> {
-  const userId = requireUserId();
-  const { error } = await supabase
-    .from("notes")
-    .upsert({ user_id: userId, date, content }, { onConflict: "user_id,date" });
-  if (error) throw error;
+  await writeOrQueue({ kind: "note", date, content });
 }
 
 // ---------- Багатоденні нотатки (Тип 3б) ----------

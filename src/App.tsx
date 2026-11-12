@@ -26,6 +26,7 @@ import {
 import { onAppResume } from "./lib/appResume";
 import {
   clearOfflineCache,
+  flushOfflineQueue,
   isOffline,
   subscribeOffline,
   toggleScheduledTask as setScheduledTaskDone,
@@ -203,6 +204,39 @@ function PlannerApp() {
     return onAppResume(() => sync(true));
   }, []);
 
+  // Офлайн-черга (галочки й нотатка без мережі): надіслати, коли з'явиться
+  // інтернет, і лише потім перечитати день і тиждень, щоб не показати старе.
+  useEffect(() => {
+    const refresh = async () => {
+      await reloadDayRef.current();
+      bump();
+    };
+    const flush = () => flushOfflineQueue().catch(() => 0);
+    const onOnline = () => void flush().then(refresh);
+    const flushIfQueued = () =>
+      void flush().then((sent) => {
+        // Після повернення в застосунок подія online могла не прийти — перевіряємо мережу читанням
+        if (sent > 0 || isOffline()) void refresh();
+      });
+
+    window.addEventListener("online", onOnline);
+    flushIfQueued();
+    const offResume = onAppResume(flushIfQueued);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      offResume();
+    };
+  }, []);
+
+  // Без мережі можна лише ставити галочки й писати нотатку дня
+  function blockedOffline(): boolean {
+    if (!isOffline()) return false;
+    toast.error("Немає мережі", {
+      message: "Без інтернету можна лише ставити галочки й писати нотатку.",
+    });
+    return true;
+  }
+
   // Зміна налаштувань нагадувань: перепланувати з невеликою затримкою,
   // щоб не робити це на кожен рух повзунка.
   useEffect(() => {
@@ -224,11 +258,13 @@ function PlannerApp() {
   );
 
   function openCreateModal() {
+    if (blockedOffline()) return;
     setEditingTask(null);
     setModalOpen(true);
   }
 
   function openEditModal(task: ScheduledTask) {
+    if (blockedOffline()) return;
     setEditingTask(task);
     setModalOpen(true);
   }
@@ -252,6 +288,7 @@ function PlannerApp() {
   }
 
   async function handleDeleteTask(task: ScheduledTask, scope: SeriesScope) {
+    if (blockedOffline()) return;
     try {
       await deleteScheduledTask(task, scope);
       bump();
@@ -284,7 +321,8 @@ function PlannerApp() {
 
       {offline && (
         <div role="status" className="border-b border-line bg-danger-soft px-4 py-1.5 text-center text-xs font-medium text-danger">
-          Немає мережі. Показано збережене на цьому пристрої, зміни зараз не збережуться.
+          Немає мережі. Показано збережене на цьому пристрої. Галочки й нотатку буде записано, коли
+          з'явиться інтернет.
         </div>
       )}
 
@@ -333,8 +371,12 @@ function PlannerApp() {
                 content={note.content}
                 onSave={saveNote}
                 multiDayNotes={multiDayNotes}
-                onAddMultiDayNote={addMultiDayNote}
-                onDeleteMultiDayNote={deleteMultiDayNote}
+                onAddMultiDayNote={(input) => {
+                  if (!blockedOffline()) void addMultiDayNote(input);
+                }}
+                onDeleteMultiDayNote={(id) => {
+                  if (!blockedOffline()) void deleteMultiDayNote(id);
+                }}
               />
             </div>
             <div className={onlyOnTab("tasks")}>
@@ -346,14 +388,17 @@ function PlannerApp() {
                   bump();
                 }}
                 onAdd={async (title) => {
+                  if (blockedOffline()) return;
                   await addDailyTask(title);
                   bump();
                 }}
                 onEdit={async (id, title) => {
+                  if (blockedOffline()) return;
                   await editDailyTask(id, title);
                   bump();
                 }}
                 onDelete={async (id) => {
+                  if (blockedOffline()) return;
                   await deleteDailyTask(id);
                   bump();
                 }}
