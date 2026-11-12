@@ -78,6 +78,7 @@ export function useDayData(date: string) {
 
   const addScheduledTask = useCallback(
     async (input: {
+      date?: string; // інший день, ніж відкритий (створення з календаря)
       startTime: string;
       endTime: string;
       title: string;
@@ -88,11 +89,11 @@ export function useDayData(date: string) {
       remindBeforeMin?: number | null;
       repeatDates?: string[]; // інші дні повторюваної задачі, крім поточного
     }) => {
-      const { subtasks = [], repeatDates = [], ...rest } = input;
+      const { subtasks = [], repeatDates = [], date: taskDate = date, ...rest } = input;
       if (repeatDates.length > 0) {
-        await db.createScheduledTaskSeries({ ...rest, subtasks }, [date, ...repeatDates]);
+        await db.createScheduledTaskSeries({ ...rest, subtasks }, [taskDate, ...repeatDates]);
       } else {
-        const taskId = await db.createScheduledTask({ date, ...rest });
+        const taskId = await db.createScheduledTask({ date: taskDate, ...rest });
         for (const title of subtasks) {
           await db.addSubtask(taskId, title);
         }

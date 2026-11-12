@@ -100,6 +100,8 @@ function PlannerApp() {
   const [editingTask, setEditingTask] = useState<ScheduledTask | null>(null);
   // Задача з календаря може бути не з активного дня: тоді форма перевіряє накладки з її днем
   const [modalDay, setModalDay] = useState<{ date: string; tasks: ScheduledTask[] } | null>(null);
+  // Початок і кінець нової задачі, створеної тапом по сітці календаря
+  const [modalTimes, setModalTimes] = useState<{ start: string; end: string } | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const bump = () => setRefreshKey((k) => k + 1);
 
@@ -281,10 +283,12 @@ function PlannerApp() {
     () => setActiveDate((d) => addDays(d, -1)),
   );
 
-  function openCreateModal() {
+  // Створення: на активний день або (тап по сітці) на день колонки з початком і кінцем
+  function openCreateModal(slot?: { date: string; tasks: ScheduledTask[]; start: string; end: string }) {
     if (blockedOffline()) return;
     setEditingTask(null);
-    setModalDay(null);
+    setModalDay(slot ? { date: slot.date, tasks: slot.tasks } : null);
+    setModalTimes(slot ? { start: slot.start, end: slot.end } : null);
     setModalOpen(true);
   }
 
@@ -292,6 +296,7 @@ function PlannerApp() {
     if (blockedOffline()) return;
     setEditingTask(task);
     setModalDay(dayTasks ? { date: task.date, tasks: dayTasks } : null);
+    setModalTimes(null);
     setModalOpen(true);
   }
 
@@ -305,7 +310,7 @@ function PlannerApp() {
             : undefined;
         await updateScheduledTask(editingTask.id, task, series);
       } else {
-        await addScheduledTask({ ...task, repeatDates });
+        await addScheduledTask({ ...task, repeatDates, date: modalDay?.date });
       }
       bump();
     } catch (err) {
@@ -402,6 +407,7 @@ function PlannerApp() {
                 onToggleSubtask={handleToggleSubtaskOf}
                 onEditTask={openEditModal}
                 onDeleteTask={handleDeleteTask}
+                onCreateAt={openCreateModal}
               />
             ) : (
               <TodaySchedule
@@ -411,7 +417,7 @@ function PlannerApp() {
                 onNextDay={() => setActiveDate((d) => addDays(d, 1))}
                 onToggleTask={handleToggleTask}
                 onToggleSubtask={handleToggleSubtask}
-                onAddTask={openCreateModal}
+                onAddTask={() => openCreateModal()}
                 onEditTask={openEditModal}
                 onDeleteTask={handleDeleteTask}
               />
@@ -470,6 +476,19 @@ function PlannerApp() {
         </div>
       </main>
 
+      {view.mode === "calendar" && activeTab === "day" && (
+        <button
+          type="button"
+          onClick={() => openCreateModal()}
+          aria-label="Нова задача"
+          className="fixed bottom-20 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-white shadow-card"
+        >
+          <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none">
+            <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        </button>
+      )}
+
       <MobileTabs active={activeTab} onChange={setActiveTab} />
 
       <SettingsScreen open={settingsOpen} onClose={() => setSettingsOpen(false)} onLogout={handleLogout} />
@@ -481,6 +500,8 @@ function PlannerApp() {
         editingTask={editingTask}
         existingTasks={modalDay?.tasks ?? scheduledTasks}
         date={modalDay?.date ?? activeDate}
+        initialStartTime={modalTimes?.start}
+        initialEndTime={modalTimes?.end}
       />
     </div>
   );

@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useCalendarZoom } from "@/hooks/useCalendarZoom";
 import { useRangeTasks } from "@/hooks/useRangeTasks";
-import { blockRect, dayHeight, initialScrollTop, minutesToTop, overlapLanes, timeToMinutes } from "@/lib/calendarLayout";
+import { blockRect, dayHeight, initialScrollTop, minutesToTop, overlapLanes, timeToMinutes, topToMinutes } from "@/lib/calendarLayout";
 import { rangeDates } from "@/lib/calendarRange";
 import { isToday } from "@/lib/date";
 import { CATEGORY_COLORS } from "@/lib/reminderPlan";
@@ -24,6 +24,12 @@ interface CalendarViewProps {
   /** dayTasks — задачі дня цієї задачі, для перевірки накладок у формі. */
   onEditTask: (task: ScheduledTask, dayTasks: ScheduledTask[]) => void;
   onDeleteTask: (task: ScheduledTask, scope: SeriesScope) => void;
+  /** Тап по порожньому місцю колонки: день, його задачі, початок і кінець (HH:MM). */
+  onCreateAt: (slot: { date: string; tasks: ScheduledTask[]; start: string; end: string }) => void;
+}
+
+function formatMinutes(min: number): string {
+  return `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
 }
 
 const HOURS = Array.from({ length: 24 }, (_, h) => h);
@@ -55,7 +61,10 @@ function TaskBlock({ task, hourHeight, lane, lanes, compact, onOpen }: TaskBlock
   return (
     <button
       type="button"
-      onClick={onOpen}
+      onClick={(e) => {
+        e.stopPropagation(); // не створювати задачу під блоком
+        onOpen();
+      }}
       className={`absolute z-10 overflow-hidden rounded-md text-left ${
         task.done ? "bg-done-bg text-done-fg" : "text-white"
       } ${compact ? "px-1 py-0.5" : "px-1.5 py-0.5"}`}
@@ -95,6 +104,7 @@ export function CalendarView({
   onToggleSubtask,
   onEditTask,
   onDeleteTask,
+  onCreateAt,
 }: CalendarViewProps) {
   const dates = rangeDates(date, range);
   const { tasks, ready } = useRangeTasks(dates, refreshKey);
@@ -225,6 +235,13 @@ export function CalendarView({
                   key={d}
                   data-date={d}
                   className="relative border-l border-line"
+                  onClick={(e) => {
+                    // Початок — за місцем тапу, округлений вниз до 30 хв; тривалість 1 година
+                    const y = e.clientY - e.currentTarget.getBoundingClientRect().top;
+                    const start = Math.min(Math.floor(topToMinutes(y, hourHeight) / 30) * 30, 23 * 60 + 30);
+                    const end = Math.min(start + 60, 23 * 60 + 59);
+                    onCreateAt({ date: d, tasks: dayTasks, start: formatMinutes(start), end: formatMinutes(end) });
+                  }}
                   style={{
                     backgroundImage:
                       "repeating-linear-gradient(to bottom, transparent 0, transparent " +

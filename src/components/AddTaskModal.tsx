@@ -27,6 +27,8 @@ interface AddTaskModalProps {
   editingTask?: ScheduledTask | null;
   existingTasks: ScheduledTask[]; // задачі того ж дня, для перевірки накладок
   date: string; // день, на який створюємо задачу
+  initialStartTime?: string; // початок нової задачі (за замовчуванням 09:00)
+  initialEndTime?: string; // кінець нової задачі (за замовчуванням 10:00)
 }
 
 const CATEGORY_OPTIONS = Object.entries(CATEGORY_LABELS) as [Category, string][];
@@ -83,7 +85,16 @@ function findOverlap(
   return null;
 }
 
-export function AddTaskModal({ open, onClose, onSave, editingTask, existingTasks, date }: AddTaskModalProps) {
+export function AddTaskModal({
+  open,
+  onClose,
+  onSave,
+  editingTask,
+  existingTasks,
+  date,
+  initialStartTime = "09:00",
+  initialEndTime = "10:00",
+}: AddTaskModalProps) {
   const [title, setTitle] = useState("");
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("10:00");
@@ -154,8 +165,8 @@ export function AddTaskModal({ open, onClose, onSave, editingTask, existingTasks
       setLeadOverride(editingTask.remindBeforeMin);
     } else {
       setTitle("");
-      setStartTime("09:00");
-      setEndTime("10:00");
+      setStartTime(initialStartTime);
+      setEndTime(initialEndTime);
       setCategory("other");
       setDetails("");
       setSubtasks([]);
@@ -166,7 +177,7 @@ export function AddTaskModal({ open, onClose, onSave, editingTask, existingTasks
     setRepeatOn(false);
     setRepeatWeekdays([fromISODate(date).getDay()]);
     setRepeatUntil(addDays(date, 28));
-  }, [open, editingTask, date]);
+  }, [open, editingTask, date, initialStartTime, initialEndTime]);
 
   useBackHandler(open, onClose);
 
