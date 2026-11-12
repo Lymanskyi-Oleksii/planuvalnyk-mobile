@@ -51,11 +51,11 @@ Android потрібен свій Kotlin-код. iOS і комп'ютер лиш
 `silent`, `channelId`, `date`, `taskId`.
 
 ### Етап 3. Показ сповіщення
-- [ ] `ReminderReceiver.kt` (`BroadcastReceiver`): `NotificationCompat.Builder` з
+- [x] `ReminderReceiver.kt` (`BroadcastReceiver`): `NotificationCompat.Builder` з
       `setSmallIcon(R.drawable.ic_notification)`, `setColor`, 
       `setStyle(DecoratedCustomViewStyle())`, `setCustomContentView`,
       `setCustomBigContentView`, `setContentIntent` → `MainActivity` з `extra date`.
-- [ ] `AndroidManifest.xml`: `<receiver>` для `ReminderReceiver`, дозвіл
+- [x] `AndroidManifest.xml`: `<receiver>` для `ReminderReceiver`, дозвіл
       `POST_NOTIFICATIONS`, якщо його немає.
 
 Підказка: канали вже створює JS (`planner-v2-full`, `planner-v2-sound`,

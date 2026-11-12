@@ -14,4 +14,6 @@
     <color name="reminder_text_secondary">#FF64748B</color>
     <color name="reminder_button_bg">#FFF1F5F9</color>
     <color name="reminder_button_text">#FF1E293B</color>
+    <!-- Запасний колір кружка, як ACCENT у src/lib/reminders.ts -->
+    <color name="reminder_accent">#FF2F6FED</color>
 </resources>
