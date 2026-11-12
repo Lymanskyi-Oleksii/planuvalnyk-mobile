@@ -64,6 +64,19 @@ export function formatShortDate(iso: string): string {
   return `${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`;
 }
 
+const SHORT_DAY_NAMES = ["нд", "пн", "вт", "ср", "чт", "пт", "сб"];
+const SHORT_MONTH_NAMES = ["січ", "лют", "бер", "квіт", "трав", "черв", "лип", "серп", "вер", "жовт", "лист", "груд"];
+
+/** Діапазон днів коротко: «пн 10 – пт 14»; якщо місяці різні — «пт 28 лист – пн 3 груд». */
+export function formatDayRange(startIso: string, endIso: string): string {
+  const a = fromISODate(startIso);
+  const b = fromISODate(endIso);
+  const sameMonth = a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear();
+  const part = (d: Date) =>
+    `${SHORT_DAY_NAMES[d.getDay()]} ${d.getDate()}${sameMonth ? "" : ` ${SHORT_MONTH_NAMES[d.getMonth()]}`}`;
+  return `${part(a)} – ${part(b)}`;
+}
+
 export function nextNDays(startIso: string, n: number): string[] {
   const out: string[] = [];
   for (let i = 1; i <= n; i++) out.push(addDays(startIso, i));

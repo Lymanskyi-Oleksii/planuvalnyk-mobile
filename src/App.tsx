@@ -121,6 +121,11 @@ function PlannerApp() {
     editDailyTask,
     addDailyTask,
     deleteDailyTask,
+    multiDayTasks,
+    toggleMultiDayTask,
+    editMultiDayTask,
+    addMultiDayTask,
+    deleteMultiDayTask,
     addScheduledTask,
     updateScheduledTask,
     deleteScheduledTask,
@@ -496,6 +501,39 @@ function PlannerApp() {
             <div className={onlyOnTab("tasks")}>
               {/* bump: задачі дня входять у ранковий план нагадувань */}
               <DailyTasksPanel
+                date={activeDate}
+                multiDayTasks={multiDayTasks}
+                onToggleMultiDay={async (id, done) => {
+                  await toggleMultiDayTask(id, done);
+                  bump();
+                }}
+                onAddMultiDay={async (input) => {
+                  if (blockedOffline()) return;
+                  try {
+                    await addMultiDayTask(input);
+                    bump();
+                  } catch (err) {
+                    toast.error("Не вдалося зберегти задачу", { message: errorText(err) });
+                  }
+                }}
+                onEditMultiDay={async (id, title) => {
+                  if (blockedOffline()) return;
+                  try {
+                    await editMultiDayTask(id, title);
+                    bump();
+                  } catch (err) {
+                    toast.error("Не вдалося зберегти задачу", { message: errorText(err) });
+                  }
+                }}
+                onDeleteMultiDay={async (id) => {
+                  if (blockedOffline()) return;
+                  try {
+                    await deleteMultiDayTask(id);
+                    bump();
+                  } catch (err) {
+                    toast.error("Не вдалося видалити задачу", { message: errorText(err) });
+                  }
+                }}
                 tasks={dailyTasks}
                 onToggle={async (id, done) => {
                   await toggleDailyTask(id, done);

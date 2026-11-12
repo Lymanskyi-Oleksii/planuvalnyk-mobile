@@ -2,14 +2,21 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useBackHandler } from "@/lib/backButton";
 import type { TouchEvent as ReactTouchEvent } from "react";
 import { Checkbox } from "./Checkbox";
-import type { DailyTask } from "@/types";
+import { addDays, formatDayRange } from "@/lib/date";
+import type { DailyTask, MultiDayTask } from "@/types";
 
 interface DailyTasksPanelProps {
+  date: string;
   tasks: DailyTask[];
   onToggle: (id: string, done: boolean) => void;
   onAdd: (title: string) => void;
   onEdit: (id: string, title: string) => void;
   onDelete: (id: string) => void;
+  multiDayTasks: MultiDayTask[];
+  onToggleMultiDay: (id: string, done: boolean) => void;
+  onAddMultiDay: (input: { title: string; startDate: string; endDate: string }) => void;
+  onEditMultiDay: (id: string, title: string) => void;
+  onDeleteMultiDay: (id: string) => void;
 }
 
 interface DragState {
@@ -20,11 +27,75 @@ interface DragState {
   translateY: number;
 }
 
-export function DailyTasksPanel({ tasks, onToggle, onAdd, onEdit, onDelete }: DailyTasksPanelProps) {
+export function DailyTasksPanel({
+  date,
+  tasks,
+  onToggle,
+  onAdd,
+  onEdit,
+  onDelete,
+  multiDayTasks,
+  onToggleMultiDay,
+  onAddMultiDay,
+  onEditMultiDay,
+  onDeleteMultiDay,
+}: DailyTasksPanelProps) {
   const [draft, setDraft] = useState("");
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState("");
+
+  // Задача на кілька днів: форма з датами, редагування назви, підтвердження видалення
+  const [addingSpan, setAddingSpan] = useState(false);
+  const [spanTitle, setSpanTitle] = useState("");
+  const [spanStart, setSpanStart] = useState(date);
+  const [spanEnd, setSpanEnd] = useState(() => addDays(date, 1));
+  const [editingSpanId, setEditingSpanId] = useState<string | null>(null);
+  const [spanEditDraft, setSpanEditDraft] = useState("");
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
+  const spanButtonRef = useRef<HTMLButtonElement>(null);
+  const switchingToSpanRef = useRef(false);
+
+  useEffect(() => {
+    setSpanStart(date);
+    setSpanEnd(addDays(date, 1));
+  }, [date]);
+
+  // Невиконані — зверху, виконані — під ними
+  const spanTasks = [...multiDayTasks.filter((t) => !t.done), ...multiDayTasks.filter((t) => t.done)];
+
+  // Перехід з рядка «Нова задача...» у форму на кілька днів; набраний текст переноситься
+  function openSpanForm() {
+    // Поле «Нова задача...» зникне; його blur не має зберегти текст як задачу дня
+    switchingToSpanRef.current = true;
+    requestAnimationFrame(() => (switchingToSpanRef.current = false));
+    setSpanTitle(draft.trim());
+    setDraft("");
+    setAdding(false);
+    setSpanStart(date);
+    setSpanEnd(addDays(date, 1));
+    setAddingSpan(true);
+  }
+
+  function submitSpan() {
+    if (!spanTitle.trim()) return;
+    onAddMultiDay({
+      title: spanTitle.trim(),
+      startDate: spanStart <= spanEnd ? spanStart : spanEnd,
+      endDate: spanStart <= spanEnd ? spanEnd : spanStart,
+    });
+    setSpanTitle("");
+    setAddingSpan(false);
+  }
+
+  function submitSpanEdit() {
+    if (editingSpanId) onEditMultiDay(editingSpanId, spanEditDraft);
+    setEditingSpanId(null);
+  }
+
+  useBackHandler(addingSpan, () => setAddingSpan(false));
+  useBackHandler(editingSpanId !== null, () => setEditingSpanId(null));
+  useBackHandler(confirmingDeleteId !== null, () => setConfirmingDeleteId(null));
   const [reordering, setReordering] = useState(false);
   const [drag, setDrag] = useState<DragState | null>(null);
   const itemRefs = useRef(new Map<string, HTMLLIElement>());
@@ -236,6 +307,123 @@ export function DailyTasksPanel({ tasks, onToggle, onAdd, onEdit, onDelete }: Da
         </div>
       </header>
 
+      {addingSpan && (
+        <div className="space-y-2.5 border-b border-line px-5 py-4">
+          <input
+            autoFocus
+            value={spanTitle}
+            onChange={(e) => setSpanTitle(e.target.value)}
+            placeholder="Задача на кілька днів"
+            className="w-full rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+          />
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={spanStart}
+              onChange={(e) => setSpanStart(e.target.value)}
+              className="min-w-0 flex-1 rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+            />
+            <span className="text-xs text-muted">до</span>
+            <input
+              type="date"
+              value={spanEnd}
+              onChange={(e) => setSpanEnd(e.target.value)}
+              className="min-w-0 flex-1 rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <button
+              onClick={() => setAddingSpan(false)}
+              className="rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-ink hover:bg-canvas"
+            >
+              Скасувати
+            </button>
+            <button
+              onClick={submitSpan}
+              disabled={!spanTitle.trim()}
+              className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent/90 disabled:opacity-40"
+            >
+              Додати
+            </button>
+          </div>
+        </div>
+      )}
+
+      {spanTasks.length > 0 && (
+        <ul className="space-y-1 border-b border-line bg-accent-soft/30 p-3">
+          {spanTasks.map((task) => {
+            const range = formatDayRange(task.startDate, task.endDate);
+            if (editingSpanId === task.id) {
+              return (
+                <li key={task.id} className="flex items-center gap-3 rounded-lg px-2 py-2">
+                  <Checkbox checked={task.done} onChange={(v) => onToggleMultiDay(task.id, v)} />
+                  <input
+                    autoFocus
+                    value={spanEditDraft}
+                    onChange={(e) => setSpanEditDraft(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && submitSpanEdit()}
+                    onBlur={submitSpanEdit}
+                    className="min-w-0 flex-1 border-0 bg-transparent text-sm text-ink outline-none"
+                  />
+                  <span className="shrink-0 text-[11px] text-muted">{range}</span>
+                </li>
+              );
+            }
+            const confirming = confirmingDeleteId === task.id;
+            return (
+              <li key={task.id} className="group flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-canvas">
+                <Checkbox checked={task.done} onChange={(v) => onToggleMultiDay(task.id, v)} />
+                <span
+                  onDoubleClick={() => {
+                    if (reordering) return;
+                    setEditingSpanId(task.id);
+                    setSpanEditDraft(task.title);
+                  }}
+                  className={`min-w-0 flex-1 text-sm transition-colors ${task.done ? "text-muted line-through" : "text-ink"}`}
+                >
+                  {task.title}
+                </span>
+                <span className="shrink-0 text-[11px] text-muted">{range}</span>
+                {!reordering && (
+                  <>
+                    <button
+                      onClick={() => {
+                        setEditingSpanId(task.id);
+                        setSpanEditDraft(task.title);
+                      }}
+                      className={`text-muted hover:text-ink ${confirming ? "hidden" : "hidden group-hover:block"}`}
+                      aria-label="Редагувати задачу"
+                    >
+                      <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none">
+                        <path d="M11 2l3 3-8 8H3v-3l8-8Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => (confirming ? onDeleteMultiDay(task.id) : setConfirmingDeleteId(task.id))}
+                      onBlur={() => setConfirmingDeleteId((id) => (id === task.id ? null : id))}
+                      className={
+                        confirming
+                          ? "rounded-lg bg-danger-soft px-2 py-1 text-xs font-medium text-danger"
+                          : "hidden text-muted hover:text-ink group-hover:block"
+                      }
+                      aria-label="Видалити задачу"
+                    >
+                      {confirming ? (
+                        "Так?"
+                      ) : (
+                        <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none">
+                          <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                        </svg>
+                      )}
+                    </button>
+                  </>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
       <ul className="flex-1 space-y-1 p-3">
         {displayTasks.map((task, i) => {
           if (editingId === task.id) {
@@ -337,14 +525,27 @@ export function DailyTasksPanel({ tasks, onToggle, onAdd, onEdit, onDelete }: Da
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && submit()}
-              onBlur={submit}
+              onBlur={(e) => {
+                // Перехід до форми «На кілька днів» — не зберігати як звичайну задачу
+                if (e.relatedTarget === spanButtonRef.current || switchingToSpanRef.current) return;
+                submit();
+              }}
               placeholder="Нова задача..."
-              className="flex-1 border-0 bg-transparent text-sm text-ink placeholder:text-muted focus:outline-none"
+              className="min-w-0 flex-1 border-0 bg-transparent text-sm text-ink placeholder:text-muted focus:outline-none"
             />
+            <button
+              ref={spanButtonRef}
+              // Не забирати фокус у поля, щоб onBlur не зберіг текст як задачу дня
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={openSpanForm}
+              className="shrink-0 rounded-lg border border-line px-2 py-1 text-xs font-medium text-ink hover:bg-canvas"
+            >
+              На кілька днів
+            </button>
           </li>
         )}
 
-        {tasks.length === 0 && !adding && (
+        {tasks.length === 0 && spanTasks.length === 0 && !adding && !addingSpan && (
           <li className="px-2 py-6 text-center text-sm text-muted">Задач на сьогодні ще немає.</li>
         )}
       </ul>
