@@ -372,7 +372,7 @@ function PlannerApp() {
         >
           <div className={onlyOnTab("day")}>
             {view.mode === "calendar" ? (
-              <CalendarView date={activeDate} range={view.range} />
+              <CalendarView date={activeDate} range={view.range} refreshKey={refreshKey} />
             ) : (
               <TodaySchedule
                 date={activeDate}
