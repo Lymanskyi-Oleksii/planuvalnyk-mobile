@@ -6,7 +6,7 @@ import { rangeDates } from "@/lib/calendarRange";
 import { isToday } from "@/lib/date";
 import { CATEGORY_COLORS } from "@/lib/reminderPlan";
 import type { CalendarRange } from "@/lib/settings";
-import { WEEKDAY_SHORT, dayOfMonth, parseISO } from "@/lib/week";
+import { WEEKDAY_SHORT, dayOfMonth, monthRangeLabel, parseISO } from "@/lib/week";
 import type { ScheduledTask, SeriesScope } from "@/types";
 import { CalendarTaskSheet } from "./CalendarTaskSheet";
 
@@ -26,7 +26,17 @@ interface CalendarViewProps {
   onDeleteTask: (task: ScheduledTask, scope: SeriesScope) => void;
   /** Тап по порожньому місцю колонки: день, його задачі, початок і кінець (HH:MM). */
   onCreateAt: (slot: { date: string; tasks: ScheduledTask[]; start: string; end: string }) => void;
+  onRangeChange: (range: CalendarRange) => void;
+  onGoToday: () => void;
+  /** Тап по числу в шапці: зробити день активним і показати лише його. */
+  onOpenDay: (date: string) => void;
 }
+
+const RANGES: [CalendarRange, string][] = [
+  [1, "День"],
+  [3, "3 дні"],
+  [7, "Тиждень"],
+];
 
 function formatMinutes(min: number): string {
   return `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
@@ -105,6 +115,9 @@ export function CalendarView({
   onEditTask,
   onDeleteTask,
   onCreateAt,
+  onRangeChange,
+  onGoToday,
+  onOpenDay,
 }: CalendarViewProps) {
   const dates = rangeDates(date, range);
   const { tasks, ready } = useRangeTasks(dates, refreshKey);
@@ -183,6 +196,38 @@ export function CalendarView({
 
   return (
     <section className="overflow-hidden rounded-xl2 border border-line bg-panel shadow-card">
+      {/* Місяць і рік видимих днів, «Сьогодні», діапазон */}
+      <div className="border-b border-line px-3 pb-2 pt-2.5">
+        <div className="flex items-center gap-2">
+          <h2 className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">
+            {monthRangeLabel(dates[0], dates[dates.length - 1])}
+          </h2>
+          <button
+            type="button"
+            onClick={onGoToday}
+            className="shrink-0 rounded-full border border-line px-3 py-1 text-xs font-medium text-accent active:bg-accent-soft"
+          >
+            Сьогодні
+          </button>
+        </div>
+        <div className="mt-2 grid grid-cols-3 gap-1 rounded-lg bg-canvas p-1" role="radiogroup" aria-label="Діапазон календаря">
+          {RANGES.map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              role="radio"
+              aria-checked={range === value}
+              onClick={() => onRangeChange(value)}
+              className={`rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
+                range === value ? "bg-panel text-accent shadow-card" : "text-muted"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* pan-y: браузер сам лише прокручує по вертикалі, щипок віддає нам (useCalendarZoom) */}
       <div
         ref={scrollRef}
@@ -199,18 +244,24 @@ export function CalendarView({
             {dates.map((d) => {
               const today = isToday(d);
               return (
-                <div key={d} className="flex flex-col items-center gap-0.5 border-l border-line py-2">
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => onOpenDay(d)}
+                  aria-label={`Відкрити день ${dayOfMonth(d)}`}
+                  className="flex flex-col items-center gap-0.5 border-l border-line py-2"
+                >
                   <span className={`text-[11px] font-medium uppercase ${today ? "text-accent" : "text-muted"}`}>
                     {WEEKDAY_SHORT[(parseISO(d).getDay() + 6) % 7]}
                   </span>
                   <span
                     className={`flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold ${
-                      today ? "bg-accent text-white" : "text-ink"
+                      today ? "bg-accent text-white" : "text-ink active:bg-canvas"
                     }`}
                   >
                     {dayOfMonth(d)}
                   </span>
-                </div>
+                </button>
               );
             })}
           </div>

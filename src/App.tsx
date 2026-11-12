@@ -277,11 +277,21 @@ function PlannerApp() {
     };
   }, []);
 
-  // Свайп по контенту (день/задачі/нотатки) перемикає день.
+  // Календар на вкладці «День»: його шапка замінює смужку тижня, свайп гортає на весь діапазон
+  const calendarOnScreen = view.mode === "calendar" && activeTab === "day";
+
+  // Свайп по контенту (день/задачі/нотатки) перемикає день; у календарі — на 1, 3 або 7 днів.
+  const swipeStep = calendarOnScreen ? view.range : 1;
   const daySwipe = useHorizontalSwipe(
-    () => setActiveDate((d) => addDays(d, 1)),
-    () => setActiveDate((d) => addDays(d, -1)),
+    () => setActiveDate((d) => addDays(d, swipeStep)),
+    () => setActiveDate((d) => addDays(d, -swipeStep)),
   );
+
+  function goToday() {
+    setActiveDate(TODAY);
+    setWeekViewAnchor(weekDates(TODAY)[3]);
+    setCalendarJump((n) => n + 1);
+  }
 
   // Створення: на активний день або (тап по сітці) на день колонки з початком і кінцем
   function openCreateModal(slot?: { date: string; tasks: ScheduledTask[]; start: string; end: string }) {
@@ -374,20 +384,18 @@ function PlannerApp() {
         </div>
       )}
 
-      <div className="sm:hidden">
-        <WeekStrip
-          weekAnchor={weekViewAnchor}
-          activeDate={activeDate}
-          summaries={weekSummaries}
-          onSelect={setActiveDate}
-          onShiftWeek={(dir) => setWeekViewAnchor((d) => addDays(d, dir * 7))}
-          onGoToday={() => {
-            setActiveDate(TODAY);
-            setWeekViewAnchor(weekDates(TODAY)[3]);
-            setCalendarJump((n) => n + 1);
-          }}
-        />
-      </div>
+      {!calendarOnScreen && (
+        <div className="sm:hidden">
+          <WeekStrip
+            weekAnchor={weekViewAnchor}
+            activeDate={activeDate}
+            summaries={weekSummaries}
+            onSelect={setActiveDate}
+            onShiftWeek={(dir) => setWeekViewAnchor((d) => addDays(d, dir * 7))}
+            onGoToday={goToday}
+          />
+        </div>
+      )}
 
       <main className="flex flex-1 flex-col gap-5 overflow-y-auto p-4 sm:flex-row sm:overflow-hidden sm:p-5">
         <div
@@ -408,6 +416,12 @@ function PlannerApp() {
                 onEditTask={openEditModal}
                 onDeleteTask={handleDeleteTask}
                 onCreateAt={openCreateModal}
+                onRangeChange={(range) => saveView({ range })}
+                onGoToday={goToday}
+                onOpenDay={(d) => {
+                  setActiveDate(d);
+                  saveView({ range: 1 });
+                }}
               />
             ) : (
               <TodaySchedule
@@ -476,7 +490,7 @@ function PlannerApp() {
         </div>
       </main>
 
-      {view.mode === "calendar" && activeTab === "day" && (
+      {calendarOnScreen && (
         <button
           type="button"
           onClick={() => openCreateModal()}

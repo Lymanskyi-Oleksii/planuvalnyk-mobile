@@ -67,8 +67,13 @@ const MONTHS_SHORT = [
  */
 export function weekMonthLabel(anchorISO: string): string {
   const days = weekDates(anchorISO);
-  const first = parseISO(days[0]);
-  const last = parseISO(days[6]);
+  return monthRangeLabel(days[0], days[6]);
+}
+
+/** Підпис місяця/року для проміжку дат від firstISO до lastISO — за тими ж правилами. */
+export function monthRangeLabel(firstISO: string, lastISO: string): string {
+  const first = parseISO(firstISO);
+  const last = parseISO(lastISO);
 
   const sameMonth = first.getMonth() === last.getMonth() && first.getFullYear() === last.getFullYear();
   if (sameMonth) {
