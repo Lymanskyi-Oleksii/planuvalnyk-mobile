@@ -2,6 +2,100 @@ import { supabase } from "@/lib/supabaseClient";
 import { requireUserId } from "@/lib/session";
 import type { Category, DailyTask, DayNote, MultiDayNote, ScheduledTask, Subtask } from "@/types";
 
+// ---------- Офлайн: збережені на пристрої дні ----------
+// Кожне вдале читання дня запам'ятовуємо в localStorage. Коли мережі немає,
+// віддаємо збережене і позначаємо, що на екрані дані з пристрою.
+
+const CACHE_PREFIX = "planner-cache-v1:";
+const CACHE_MAX_ENTRIES = 300;
+
+interface CacheStore {
+  [key: string]: { at: number; data: unknown };
+}
+
+function cacheKey(): string {
+  return CACHE_PREFIX + requireUserId();
+}
+
+function readCacheStore(): CacheStore {
+  try {
+    return JSON.parse(localStorage.getItem(cacheKey()) ?? "{}") as CacheStore;
+  } catch {
+    return {};
+  }
+}
+
+function writeCache(key: string, data: unknown) {
+  try {
+    const store = readCacheStore();
+    store[key] = { at: Date.now(), data };
+    // Найстаріші записи прибираємо, щоб не переповнити localStorage
+    const keys = Object.keys(store);
+    if (keys.length > CACHE_MAX_ENTRIES) {
+      keys
+        .sort((a, b) => store[a].at - store[b].at)
+        .slice(0, keys.length - CACHE_MAX_ENTRIES)
+        .forEach((k) => delete store[k]);
+    }
+    localStorage.setItem(cacheKey(), JSON.stringify(store));
+  } catch {
+    // Немає місця чи доступу — просто працюємо без збереження
+  }
+}
+
+// Видалити збережені дні всіх користувачів (під час виходу з акаунта)
+export function clearOfflineCache() {
+  try {
+    Object.keys(localStorage)
+      .filter((k) => k.startsWith(CACHE_PREFIX))
+      .forEach((k) => localStorage.removeItem(k));
+  } catch {
+    // нічого
+  }
+}
+
+function isNetworkError(err: unknown): boolean {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return true;
+  const message = (err as { message?: string } | null)?.message ?? String(err);
+  return /failed to fetch|fetcherror|networkerror|network request failed|load failed|fetch failed/i.test(message);
+}
+
+// Стан «показано збережене без мережі» для смужки в інтерфейсі
+let offline = false;
+const offlineListeners = new Set<(value: boolean) => void>();
+
+function setOffline(value: boolean) {
+  if (offline === value) return;
+  offline = value;
+  offlineListeners.forEach((fn) => fn(value));
+}
+
+export function isOffline(): boolean {
+  return offline;
+}
+
+export function subscribeOffline(fn: (value: boolean) => void): () => void {
+  offlineListeners.add(fn);
+  return () => {
+    offlineListeners.delete(fn);
+  };
+}
+
+// Читає з бази й запам'ятовує; без мережі віддає збережене (або порожнє значення)
+async function readWithCache<T>(key: string, empty: T, fetcher: () => Promise<T>): Promise<T> {
+  try {
+    const data = await fetcher();
+    writeCache(key, data);
+    setOffline(false);
+    return data;
+  } catch (err) {
+    if (!isNetworkError(err)) throw err;
+    setOffline(true);
+    const saved = readCacheStore()[key];
+    return saved ? (saved.data as T) : empty;
+  }
+}
+
 function mapSubtask(row: any): Subtask {
   return {
     id: row.id,
@@ -109,15 +203,17 @@ async function updateTaskRows(
 
 export async function getScheduledTasks(date: string): Promise<ScheduledTask[]> {
   const userId = requireUserId();
-  const { data, error } = await supabase
-    .from("scheduled_tasks")
-    .select("*, subtasks(*)")
-    .eq("user_id", userId)
-    .eq("date", date)
-    .order("start_time", { ascending: true })
-    .order("sort_order", { referencedTable: "subtasks", ascending: true });
-  if (error) throw error;
-  return (data ?? []).map(mapScheduledTask);
+  return readWithCache(`scheduled:${date}`, [], async () => {
+    const { data, error } = await supabase
+      .from("scheduled_tasks")
+      .select("*, subtasks(*)")
+      .eq("user_id", userId)
+      .eq("date", date)
+      .order("start_time", { ascending: true })
+      .order("sort_order", { referencedTable: "subtasks", ascending: true });
+    if (error) throw error;
+    return (data ?? []).map(mapScheduledTask);
+  });
 }
 
 export async function createScheduledTask(input: {
@@ -295,20 +391,22 @@ export async function toggleSubtask(id: string, done: boolean): Promise<void> {
 
 export async function getDailyTasks(date: string): Promise<DailyTask[]> {
   const userId = requireUserId();
-  const { data, error } = await supabase
-    .from("daily_tasks")
-    .select("*")
-    .eq("user_id", userId)
-    .eq("date", date)
-    .order("sort_order", { ascending: true });
-  if (error) throw error;
-  return (data ?? []).map((row: any) => ({
-    id: row.id,
-    date: row.date,
-    title: row.title,
-    done: row.done,
-    sortOrder: row.sort_order,
-  }));
+  return readWithCache(`daily:${date}`, [], async () => {
+    const { data, error } = await supabase
+      .from("daily_tasks")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("date", date)
+      .order("sort_order", { ascending: true });
+    if (error) throw error;
+    return (data ?? []).map((row: any) => ({
+      id: row.id,
+      date: row.date,
+      title: row.title,
+      done: row.done,
+      sortOrder: row.sort_order,
+    }));
+  });
 }
 
 export async function addDailyTask(date: string, title: string): Promise<string> {
@@ -341,14 +439,16 @@ export async function deleteDailyTask(id: string): Promise<void> {
 
 export async function getNote(date: string): Promise<DayNote> {
   const userId = requireUserId();
-  const { data, error } = await supabase
-    .from("notes")
-    .select("*")
-    .eq("user_id", userId)
-    .eq("date", date)
-    .maybeSingle();
-  if (error) throw error;
-  return { date, content: data?.content ?? "" };
+  return readWithCache(`note:${date}`, { date, content: "" }, async () => {
+    const { data, error } = await supabase
+      .from("notes")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("date", date)
+      .maybeSingle();
+    if (error) throw error;
+    return { date, content: data?.content ?? "" };
+  });
 }
 
 export async function saveNote(date: string, content: string): Promise<void> {
@@ -363,21 +463,23 @@ export async function saveNote(date: string, content: string): Promise<void> {
 
 export async function getMultiDayNotes(date: string): Promise<MultiDayNote[]> {
   const userId = requireUserId();
-  const { data, error } = await supabase
-    .from("multi_day_notes")
-    .select("*")
-    .eq("user_id", userId)
-    .lte("start_date", date)
-    .gte("end_date", date)
-    .order("start_date", { ascending: true });
-  if (error) throw error;
-  return (data ?? []).map((row: any) => ({
-    id: row.id,
-    title: row.title,
-    content: row.content,
-    startDate: row.start_date,
-    endDate: row.end_date,
-  }));
+  return readWithCache(`multi:${date}`, [], async () => {
+    const { data, error } = await supabase
+      .from("multi_day_notes")
+      .select("*")
+      .eq("user_id", userId)
+      .lte("start_date", date)
+      .gte("end_date", date)
+      .order("start_date", { ascending: true });
+    if (error) throw error;
+    return (data ?? []).map((row: any) => ({
+      id: row.id,
+      title: row.title,
+      content: row.content,
+      startDate: row.start_date,
+      endDate: row.end_date,
+    }));
+  });
 }
 
 export async function createMultiDayNote(input: {

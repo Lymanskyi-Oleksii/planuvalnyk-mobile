@@ -24,7 +24,12 @@ import {
   takeOpenDate,
 } from "./lib/reminders";
 import { onAppResume } from "./lib/appResume";
-import { toggleScheduledTask as setScheduledTaskDone } from "./db/database";
+import {
+  clearOfflineCache,
+  isOffline,
+  subscribeOffline,
+  toggleScheduledTask as setScheduledTaskDone,
+} from "./db/database";
 import { subscribeSettings } from "./lib/settings";
 import { SettingsScreen } from "./components/SettingsScreen";
 import { Toaster } from "./components/Toaster";
@@ -122,6 +127,10 @@ function PlannerApp() {
   }, [activeDate]);
 
   const weekSummaries = useWeekSummaries(weekViewAnchor, refreshKey, 3, 3);
+
+  // Без мережі database.ts віддає збережене на пристрої — показуємо смужку
+  const [offline, setOffline] = useState(isOffline);
+  useEffect(() => subscribeOffline(setOffline), []);
 
   // Локальні нагадування на найближчі дні: перепланувати при відкритті,
   // після кожної зміни задач і коли застосунок повертається на передній план.
@@ -263,6 +272,7 @@ function PlannerApp() {
 
   async function handleLogout() {
     await supabase.auth.signOut();
+    clearOfflineCache();
   }
 
   // На телефоні показуємо лише активну вкладку, на планшеті/десктопі — все одразу.
@@ -271,6 +281,12 @@ function PlannerApp() {
   return (
     <div className="flex h-screen flex-col bg-canvas font-sans text-ink">
       <TitleBar onLogout={handleLogout} onOpenSettings={() => setSettingsOpen(true)} />
+
+      {offline && (
+        <div role="status" className="border-b border-line bg-danger-soft px-4 py-1.5 text-center text-xs font-medium text-danger">
+          Немає мережі. Показано збережене на цьому пристрої, зміни зараз не збережуться.
+        </div>
+      )}
 
       <div className="sm:hidden">
         <WeekStrip

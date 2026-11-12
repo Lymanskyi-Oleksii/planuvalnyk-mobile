@@ -6,6 +6,14 @@ import type { DaySummary } from "@/types";
 // Показує тиждень із сьогоднішнім днем по центру: 3 дні до, сьогодні, 3 дні після
 export function useWeekSummaries(todayIso: string, refreshKey: number, before = 3, after = 3) {
   const [summaries, setSummaries] = useState<DaySummary[]>([]);
+  // Мережа повернулася — перечитати тиждень
+  const [onlineKey, setOnlineKey] = useState(0);
+
+  useEffect(() => {
+    const onOnline = () => setOnlineKey((k) => k + 1);
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -17,7 +25,7 @@ export function useWeekSummaries(todayIso: string, refreshKey: number, before = 
     return () => {
       cancelled = true;
     };
-  }, [todayIso, before, after, refreshKey]);
+  }, [todayIso, before, after, refreshKey, onlineKey]);
 
   return summaries;
 }

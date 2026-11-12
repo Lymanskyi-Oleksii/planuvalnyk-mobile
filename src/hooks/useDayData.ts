@@ -26,6 +26,10 @@ export function useDayData(date: string) {
 
   useEffect(() => {
     reload();
+    // Мережа повернулася — замінюємо збережене на свіже з бази
+    const onOnline = () => void reload();
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
   }, [reload]);
 
   const toggleScheduledTask = useCallback(async (id: string, done: boolean) => {
