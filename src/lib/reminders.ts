@@ -36,7 +36,10 @@ import {
 // Дозвіл на сповіщення й канали Android — через плагін notification.
 
 const DAYS_AHEAD = 7;
-const MAX_NOTIFICATIONS = 60; // iOS тримає не більше 64 запланованих
+const MAX_NOTIFICATIONS_IOS = 60; // iOS тримає не більше 64 запланованих
+// Android дає застосунку до 500 одночасних будильників (AlarmManager, менше прошивка
+// поставити не може). 400 — із запасом на відкладені й тестове.
+const MAX_NOTIFICATIONS_ANDROID = 400;
 const SMALL_ICON = "ic_notification"; // res/drawable/ic_notification.xml
 const ACCENT = "#2F6FED";
 
@@ -466,7 +469,8 @@ async function doReschedule(): Promise<void> {
       settings.morningDigest ? fetchDailyTasks(userId, today, until) : Promise.resolve([]),
       settings.morningDigest ? fetchMultiDayTasks(userId, today, until) : Promise.resolve([]),
     ]);
-    const plan = buildPlan(tasks, settings, new Date(), daily, spanning).slice(0, MAX_NOTIFICATIONS);
+    const max = isAndroid() ? MAX_NOTIFICATIONS_ANDROID : MAX_NOTIFICATIONS_IOS;
+    const plan = buildPlan(tasks, settings, new Date(), daily, spanning).slice(0, max);
 
     if (!(await requestNotificationPermission())) {
       publish("denied", plan);

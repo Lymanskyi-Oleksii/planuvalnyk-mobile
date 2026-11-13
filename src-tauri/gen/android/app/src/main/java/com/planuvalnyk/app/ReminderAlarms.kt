@@ -101,7 +101,16 @@ object ReminderAlarms {
   /** Ставить будильники на всі нагадування, час яких ще не минув. */
   fun setAll(ctx: Context, list: List<Reminder>) {
     val now = System.currentTimeMillis()
-    list.filter { it.whenMs > now }.forEach { set(ctx, it.id, it.whenMs, alarmClock = it.snoozed) }
+    // Найближчі першими: якщо впремося в ліміт (500 будильників на застосунок),
+    // без будильника лишаться найдальші, а план поставиться наступного разу
+    list.filter { it.whenMs > now }.sortedBy { it.whenMs }.forEach {
+      try {
+        set(ctx, it.id, it.whenMs, alarmClock = it.snoozed)
+      } catch (e: IllegalStateException) {
+        Log.w(TAG, "setAll: ліміт будильників — ${e.message}")
+        return
+      }
+    }
   }
 
   /**
