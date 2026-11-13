@@ -448,20 +448,6 @@ export async function getScheduledTasks(date: string): Promise<ScheduledTask[]> 
   });
 }
 
-export async function createScheduledTask(input: {
-  date: string;
-  startTime: string;
-  endTime: string;
-  title: string;
-  category: Category;
-  details?: string | null;
-  remind?: boolean | null;
-  remindBeforeMin?: number | null;
-}): Promise<string> {
-  const [id] = await insertTaskRows([taskRow(requireUserId(), input.date, input)]);
-  return id;
-}
-
 function taskRow(
   userId: string,
   date: string,
@@ -474,9 +460,11 @@ function taskRow(
     remind?: boolean | null;
     remindBeforeMin?: number | null;
   },
+  id: string,
   seriesId?: string
 ): Record<string, unknown> {
   const row: Record<string, unknown> = {
+    id,
     user_id: userId,
     date,
     start_time: input.startTime,
@@ -493,8 +481,14 @@ function taskRow(
   return row;
 }
 
-// Повторювана задача: однакові копії на кожну з дат зі спільним series_id
-export async function createScheduledTaskSeries(
+/**
+ * Нова задача з підзадачами; якщо дат кілька — повторювана: однакові копії на кожну
+ * дату зі спільним series_id. Задачі йдуть одним запитом, підзадачі — другим. Якщо
+ * другий не вдався, задачі видаляються (підзадачі з ними — каскадом), щоб не лишилося
+ * задачі без частини підзадач. Id задач створюємо самі: так знаємо, що прибирати,
+ * навіть коли відповідь на вставку загубилася.
+ */
+export async function createScheduledTasks(
   input: {
     startTime: string;
     endTime: string;
@@ -508,14 +502,26 @@ export async function createScheduledTaskSeries(
   dates: string[]
 ): Promise<void> {
   const userId = requireUserId();
-  const seriesId = crypto.randomUUID();
-  const ids = await insertTaskRows(dates.map((d) => taskRow(userId, d, input, seriesId)));
-  const rows = ids.flatMap((taskId) =>
-    input.subtasks.map((title, i) => ({ task_id: taskId, title, sort_order: i }))
-  );
-  if (rows.length > 0) {
-    const { error } = await supabase.from("subtasks").insert(rows);
-    if (error) throw error;
+  const seriesId = dates.length > 1 ? crypto.randomUUID() : undefined;
+  const ids = dates.map(() => crypto.randomUUID());
+  try {
+    await insertTaskRows(dates.map((d, i) => taskRow(userId, d, input, ids[i], seriesId)));
+    const rows = ids.flatMap((taskId) =>
+      input.subtasks.map((title, i) => ({ task_id: taskId, title, sort_order: i }))
+    );
+    if (rows.length > 0) {
+      const { error } = await supabase.from("subtasks").insert(rows);
+      if (error) throw error;
+    }
+  } catch (err) {
+    // Задач могло й не бути в базі — тоді видалення нічого не змінить.
+    // Його власна помилка не важлива: показуємо першу.
+    try {
+      await supabase.from("scheduled_tasks").delete().in("id", ids);
+    } catch {
+      // нічого
+    }
+    throw err;
   }
 }
 
@@ -636,16 +642,6 @@ export async function deleteScheduledTask(id: string): Promise<void> {
 }
 
 // ---------- Підзадачі ----------
-
-export async function addSubtask(taskId: string, title: string, sortOrder = 0): Promise<string> {
-  const { data, error } = await supabase
-    .from("subtasks")
-    .insert({ task_id: taskId, title, sort_order: sortOrder })
-    .select("id")
-    .single();
-  if (error) throw error;
-  return data.id as string;
-}
 
 export async function toggleSubtask(id: string, done: boolean): Promise<void> {
   await writeOrQueue({ kind: "subtaskDone", id, done });

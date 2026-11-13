@@ -151,15 +151,10 @@ export function useDayData(date: string) {
       repeatDates?: string[]; // інші дні повторюваної задачі, крім поточного
     }) => {
       const { subtasks = [], repeatDates = [], date: taskDate = date, ...rest } = input;
-      const titles = subtasks.map((s) => s.title);
-      if (repeatDates.length > 0) {
-        await db.createScheduledTaskSeries({ ...rest, subtasks: titles }, [taskDate, ...repeatDates]);
-      } else {
-        const taskId = await db.createScheduledTask({ date: taskDate, ...rest });
-        for (const [i, title] of titles.entries()) {
-          await db.addSubtask(taskId, title, i);
-        }
-      }
+      await db.createScheduledTasks(
+        { ...rest, subtasks: subtasks.map((s) => s.title) },
+        [taskDate, ...repeatDates]
+      );
       await reload();
     },
     [date, reload]
