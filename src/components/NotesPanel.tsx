@@ -8,7 +8,8 @@ interface NotesPanelProps {
   content: string | null; // null — нотатку цього дня ще не завантажено
   onSave: (content: string) => void | Promise<void>;
   multiDayNotes: MultiDayNote[];
-  onAddMultiDayNote: (input: { title: string; content: string; startDate: string; endDate: string }) => void;
+  // true — записано; інакше форма лишається з текстом
+  onAddMultiDayNote: (input: { title: string; content: string; startDate: string; endDate: string }) => Promise<boolean>;
   onDeleteMultiDayNote: (id: string) => void;
 }
 
@@ -29,6 +30,7 @@ export function NotesPanel({
   const [spanContent, setSpanContent] = useState("");
   const [spanStart, setSpanStart] = useState(date);
   const [spanEnd, setSpanEnd] = useState(date);
+  const [spanSaving, setSpanSaving] = useState(false);
 
   useEffect(() => {
     if (content !== null) setValue(content);
@@ -66,14 +68,18 @@ export function NotesPanel({
     }, 600);
   }
 
-  function submitSpanNote() {
-    if (!spanTitle.trim()) return;
-    onAddMultiDayNote({
+  // Форма очищається лише після успішного збереження; при помилці текст лишається
+  async function submitSpanNote() {
+    if (!spanTitle.trim() || spanSaving) return;
+    setSpanSaving(true);
+    const saved = await onAddMultiDayNote({
       title: spanTitle.trim(),
       content: spanContent.trim(),
       startDate: spanStart <= spanEnd ? spanStart : spanEnd,
       endDate: spanStart <= spanEnd ? spanEnd : spanStart,
-    });
+    }).catch(() => false);
+    setSpanSaving(false);
+    if (!saved) return;
     setSpanTitle("");
     setSpanContent("");
     setAddingSpan(false);
@@ -166,7 +172,7 @@ export function NotesPanel({
             </button>
             <button
               onClick={submitSpanNote}
-              disabled={!spanTitle.trim()}
+              disabled={!spanTitle.trim() || spanSaving}
               className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent/90 disabled:opacity-40"
             >
               Додати

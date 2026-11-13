@@ -9,13 +9,14 @@ interface DailyTasksPanelProps {
   date: string;
   tasks: DailyTask[];
   onToggle: (id: string, done: boolean) => void;
-  onAdd: (title: string) => void;
-  onEdit: (id: string, title: string) => void;
+  // Збереження повертає true, якщо записано; інакше текст лишається в полі
+  onAdd: (title: string) => Promise<boolean>;
+  onEdit: (id: string, title: string) => Promise<boolean>;
   onDelete: (id: string) => void;
   multiDayTasks: MultiDayTask[];
   onToggleMultiDay: (id: string, done: boolean) => void;
-  onAddMultiDay: (input: { title: string; startDate: string; endDate: string }) => void;
-  onEditMultiDay: (id: string, title: string) => void;
+  onAddMultiDay: (input: { title: string; startDate: string; endDate: string }) => Promise<boolean>;
+  onEditMultiDay: (id: string, title: string) => Promise<boolean>;
   onDeleteMultiDay: (id: string) => void;
 }
 
@@ -77,20 +78,39 @@ export function DailyTasksPanel({
     setAddingSpan(true);
   }
 
-  function submitSpan() {
+  // Одне збереження за раз: Enter, а слідом blur того ж поля не мають записати двічі
+  const savingRef = useRef(false);
+  async function saveOnce(save: () => Promise<boolean>): Promise<boolean> {
+    if (savingRef.current) return false;
+    savingRef.current = true;
+    try {
+      return await save();
+    } finally {
+      savingRef.current = false;
+    }
+  }
+
+  // Поля очищаються лише після успішного збереження; при помилці текст лишається
+  async function submitSpan() {
     if (!spanTitle.trim()) return;
-    onAddMultiDay({
-      title: spanTitle.trim(),
-      startDate: spanStart <= spanEnd ? spanStart : spanEnd,
-      endDate: spanStart <= spanEnd ? spanEnd : spanStart,
-    });
+    const saved = await saveOnce(() =>
+      onAddMultiDay({
+        title: spanTitle.trim(),
+        startDate: spanStart <= spanEnd ? spanStart : spanEnd,
+        endDate: spanStart <= spanEnd ? spanEnd : spanStart,
+      })
+    );
+    if (!saved) return;
     setSpanTitle("");
     setAddingSpan(false);
   }
 
-  function submitSpanEdit() {
-    if (editingSpanId) onEditMultiDay(editingSpanId, spanEditDraft);
-    setEditingSpanId(null);
+  async function submitSpanEdit() {
+    const id = editingSpanId;
+    if (!id) return;
+    if (await saveOnce(() => onEditMultiDay(id, spanEditDraft))) {
+      setEditingSpanId((cur) => (cur === id ? null : cur));
+    }
   }
 
   useBackHandler(addingSpan, () => setAddingSpan(false));
@@ -149,11 +169,13 @@ export function DailyTasksPanel({
     setFlipTick((n) => n + 1);
   }
 
-  function submit() {
-    if (draft.trim()) {
-      onAdd(draft);
-      setDraft("");
+  async function submit() {
+    if (!draft.trim()) {
+      setAdding(false);
+      return;
     }
+    if (!(await saveOnce(() => onAdd(draft)))) return;
+    setDraft("");
     setAdding(false);
   }
 
@@ -162,9 +184,12 @@ export function DailyTasksPanel({
     setEditDraft(task.title);
   }
 
-  function submitEdit() {
-    if (editingId) onEdit(editingId, editDraft);
-    setEditingId(null);
+  async function submitEdit() {
+    const id = editingId;
+    if (!id) return;
+    if (await saveOnce(() => onEdit(id, editDraft))) {
+      setEditingId((cur) => (cur === id ? null : cur));
+    }
   }
 
   function exitReordering() {

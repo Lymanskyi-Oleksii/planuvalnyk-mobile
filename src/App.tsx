@@ -96,6 +96,7 @@ function errorText(err: unknown): string {
 
 // Помилка збереження з форми: текст лишається в полях, можна спробувати ще раз
 const SAVE_FAILED_MESSAGE = "Перевірте з'єднання з інтернетом і спробуйте ще раз. Введений текст лишився у формі.";
+const RETRY_MESSAGE = "Перевірте з'єднання з інтернетом і спробуйте ще раз.";
 
 function PlannerApp() {
   const [activeDate, setActiveDate] = useState(TODAY);
@@ -354,6 +355,25 @@ function PlannerApp() {
     }
   }
 
+  // Запис із задач дня чи нотаток на кілька днів: true — записано.
+  // При помилці текст лишається в полі, а помилку показує картка.
+  async function writeWithToast(
+    failTitle: string,
+    write: () => Promise<void>,
+    message = SAVE_FAILED_MESSAGE
+  ): Promise<boolean> {
+    if (blockedOffline()) return false;
+    try {
+      await write();
+      return true;
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error(`${failTitle}:`, err);
+      toast.error(failTitle, { message });
+      return false;
+    }
+  }
+
   async function handleDeleteTask(task: ScheduledTask, scope: SeriesScope) {
     if (blockedOffline()) return;
     try {
@@ -503,12 +523,12 @@ function PlannerApp() {
                 content={note.date === activeDate ? note.content : null}
                 onSave={saveNote}
                 multiDayNotes={multiDayNotes}
-                onAddMultiDayNote={(input) => {
-                  if (!blockedOffline()) void addMultiDayNote(input);
-                }}
-                onDeleteMultiDayNote={(id) => {
-                  if (!blockedOffline()) void deleteMultiDayNote(id);
-                }}
+                onAddMultiDayNote={(input) =>
+                  writeWithToast("Не вдалося зберегти нотатку", () => addMultiDayNote(input))
+                }
+                onDeleteMultiDayNote={(id) =>
+                  void writeWithToast("Не вдалося видалити нотатку", () => deleteMultiDayNote(id), RETRY_MESSAGE)
+                }
               />
             </div>
             <div className={onlyOnTab("tasks")}>
@@ -520,53 +540,47 @@ function PlannerApp() {
                   await toggleMultiDayTask(id, done);
                   bump();
                 }}
-                onAddMultiDay={async (input) => {
-                  if (blockedOffline()) return;
-                  try {
+                onAddMultiDay={(input) =>
+                  writeWithToast("Не вдалося зберегти задачу", async () => {
                     await addMultiDayTask(input);
                     bump();
-                  } catch (err) {
-                    toast.error("Не вдалося зберегти задачу", { message: errorText(err) });
-                  }
-                }}
-                onEditMultiDay={async (id, title) => {
-                  if (blockedOffline()) return;
-                  try {
+                  })
+                }
+                onEditMultiDay={(id, title) =>
+                  writeWithToast("Не вдалося зберегти задачу", async () => {
                     await editMultiDayTask(id, title);
                     bump();
-                  } catch (err) {
-                    toast.error("Не вдалося зберегти задачу", { message: errorText(err) });
-                  }
-                }}
-                onDeleteMultiDay={async (id) => {
-                  if (blockedOffline()) return;
-                  try {
+                  })
+                }
+                onDeleteMultiDay={(id) =>
+                  void writeWithToast("Не вдалося видалити задачу", async () => {
                     await deleteMultiDayTask(id);
                     bump();
-                  } catch (err) {
-                    toast.error("Не вдалося видалити задачу", { message: errorText(err) });
-                  }
-                }}
+                  }, RETRY_MESSAGE)
+                }
                 tasks={dailyTasks}
                 onToggle={async (id, done) => {
                   await toggleDailyTask(id, done);
                   bump();
                 }}
-                onAdd={async (title) => {
-                  if (blockedOffline()) return;
-                  await addDailyTask(title);
-                  bump();
-                }}
-                onEdit={async (id, title) => {
-                  if (blockedOffline()) return;
-                  await editDailyTask(id, title);
-                  bump();
-                }}
-                onDelete={async (id) => {
-                  if (blockedOffline()) return;
-                  await deleteDailyTask(id);
-                  bump();
-                }}
+                onAdd={(title) =>
+                  writeWithToast("Не вдалося зберегти задачу", async () => {
+                    await addDailyTask(title);
+                    bump();
+                  })
+                }
+                onEdit={(id, title) =>
+                  writeWithToast("Не вдалося зберегти задачу", async () => {
+                    await editDailyTask(id, title);
+                    bump();
+                  })
+                }
+                onDelete={(id) =>
+                  void writeWithToast("Не вдалося видалити задачу", async () => {
+                    await deleteDailyTask(id);
+                    bump();
+                  }, RETRY_MESSAGE)
+                }
               />
             </div>
           </div>
