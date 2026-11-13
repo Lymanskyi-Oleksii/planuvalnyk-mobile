@@ -152,7 +152,9 @@ function PlannerApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDate]);
 
-  const weekSummaries = useWeekSummaries(weekViewAnchor, refreshKey, 3, 3);
+  // У режимі «Тиждень» смужка схована — її дані (≈14 запитів на свайп) не вантажимо
+  const weekStripVisible = !(view.mode === "calendar" && activeTab === "day");
+  const weekSummaries = useWeekSummaries(weekViewAnchor, refreshKey, 3, 3, weekStripVisible);
 
   // Без мережі database.ts віддає збережене на пристрої — показуємо смужку
   const [offline, setOffline] = useState(isOffline);

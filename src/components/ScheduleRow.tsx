@@ -164,13 +164,8 @@ export function ScheduleRow({ task, onToggleTask, onToggleSubtask, onEdit, onDel
                 <Checkbox
                   size="sm"
                   checked={checked}
-                  onChange={(v) => {
-                    onToggleSubtask(s.id, v);
-                    // Якщо знімаємо галочку з підзадачі, поки основна задача
-                    // позначена виконаною — знімаємо позначку і з неї, бо
-                    // "виконано" вже не відповідає дійсності.
-                    if (task.done && !v) onToggleTask(task.id, false);
-                  }}
+                  // Зняту галочку з виконаної задачі знімає обробник нагорі (App/useDayData)
+                  onChange={(v) => onToggleSubtask(s.id, v)}
                 />
                 <span className={`text-sm transition-colors ${checked ? "text-done-fg line-through" : "text-ink/90"}`}>{s.title}</span>
               </li>
