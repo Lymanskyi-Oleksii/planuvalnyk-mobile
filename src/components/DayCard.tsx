@@ -1,4 +1,5 @@
 import { formatDayName, formatShortDate, fromISODate } from "@/lib/date";
+import { pluralTasks } from "@/lib/reminderPlan";
 import type { DaySummary } from "@/types";
 
 interface DayCardProps {
@@ -61,7 +62,7 @@ export function DayCard({ summary, active, isToday, onSelect }: DayCardProps) {
           </span>
           {summary.totalCount > 0 && (
             <span className="rounded-md bg-canvas px-2 py-0.5 text-xs font-medium text-muted">
-              {summary.totalCount} {summary.totalCount === 1 ? "задача" : "задачі"}
+              {pluralTasks(summary.totalCount)}
             </span>
           )}
         </div>

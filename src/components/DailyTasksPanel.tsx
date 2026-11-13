@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useBackHandler } from "@/lib/backButton";
 import type { TouchEvent as ReactTouchEvent } from "react";
 import { Checkbox } from "./Checkbox";
-import { addDays, formatDayRange } from "@/lib/date";
+import { addDays, formatDayRange, isToday } from "@/lib/date";
 import type { DailyTask, MultiDayTask } from "@/types";
 
 interface DailyTasksPanelProps {
@@ -583,7 +583,9 @@ export function DailyTasksPanel({
         )}
 
         {tasks.length === 0 && spanTasks.length === 0 && !adding && !addingSpan && (
-          <li className="px-2 py-6 text-center text-sm text-muted">Задач на сьогодні ще немає.</li>
+          <li className="px-2 py-6 text-center text-sm text-muted">
+            {isToday(date) ? "Задач на сьогодні ще немає." : "Задач на цей день ще немає."}
+          </li>
         )}
       </ul>
     </section>
