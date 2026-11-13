@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import * as db from "@/db/database";
 import type { ScheduledTask } from "@/types";
 
-export interface RangeTasks {
+interface RangeTasks {
   tasks: Record<string, ScheduledTask[]>;
   /** Задачі саме цих дат уже прочитано (з мережі чи з офлайн-кешу). */
   ready: boolean;

@@ -216,10 +216,10 @@
 - [ ] коментар про «Ctrl+колесо» в `calendarLayout.ts:2`.
 
 ### Мертвий код
-- [ ] Невикористані npm-залежності: `uuid`, `@types/uuid`, `date-fns`.
-- [ ] Невикористані експорти: `pendingOfflineCount`, `nextNDays`.
-- [ ] Близько 15 зайвих `export`.
-- [ ] `isMissingTable` продубльовано в `reminders.ts:390`.
+- [x] Невикористані npm-залежності: `uuid`, `@types/uuid`, `date-fns`.
+- [x] Невикористані експорти: `pendingOfflineCount`, `nextNDays`.
+- [x] Близько 15 зайвих `export`.
+- [x] `isMissingTable` продубльовано в `reminders.ts:390`.
 - [ ] iOS-шлях у `reminders.ts`: лишений свідомо за планом, але для Android-only він мертвий.
 
 ### Інше

@@ -13,6 +13,7 @@ import { platform } from "@tauri-apps/plugin-os";
 import type { Session } from "@supabase/supabase-js";
 import { supabase, url as supabaseUrl, anonKey as supabaseAnonKey } from "./supabaseClient";
 import { requireUserId } from "./session";
+import { isMissingTable } from "./errorText";
 import { addDays, toISODate } from "./date";
 import { loadSettings, type AlertMode } from "./settings";
 import {
@@ -53,7 +54,7 @@ const CHANNEL_BY_MODE: Record<AlertMode, string> = {
   silent: CHANNEL_SILENT,
 };
 
-export type ReminderState =
+type ReminderState =
   | "idle" // ще не планували
   | "scheduled" // системні сповіщення заплановано
   | "off" // вимкнено головним вимикачем
@@ -328,7 +329,7 @@ function deliver(p: PlannedReminder, mode: AlertMode, when: Date = p.when): void
   });
 }
 
-export type TestResult = "scheduled" | "denied" | "failed";
+type TestResult = "scheduled" | "denied" | "failed";
 
 const TEST_REMINDER: PlannedReminder = {
   key: "test",
@@ -431,14 +432,7 @@ async function fetchMultiDayTasks(userId: string, from: string, to: string): Pro
     .order("sort_order", { ascending: true })
     .order("start_date", { ascending: true });
   // міграцію migration_multi_day_tasks.sql ще не запущено: працюємо без них
-  const missing =
-    error &&
-    (error.code === "42P01" ||
-      error.code === "PGRST205" ||
-      /multi_day_tasks.*(does not exist|could not find)|(does not exist|could not find).*multi_day_tasks/i.test(
-        error.message ?? ""
-      ));
-  if (missing) return [];
+  if (isMissingTable(error, "multi_day_tasks")) return [];
   if (error) throw error;
   return (data ?? []).map((r) => ({
     startDate: r.start_date as string,

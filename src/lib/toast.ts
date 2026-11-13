@@ -3,12 +3,12 @@
 
 export type ToastKind = "success" | "error" | "info";
 
-export interface ToastAction {
+interface ToastAction {
   label: string;
   onClick: () => void;
 }
 
-export interface ToastOptions {
+interface ToastOptions {
   message?: string;
   duration?: number; // мс; 0 = не зникає саме
   action?: ToastAction;

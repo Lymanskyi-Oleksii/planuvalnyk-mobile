@@ -27,7 +27,7 @@ export function findOverlap(
 }
 
 /** Нове місце однієї задачі. */
-export interface TaskMove {
+interface TaskMove {
   id: string;
   date: string;
   startTime: string;

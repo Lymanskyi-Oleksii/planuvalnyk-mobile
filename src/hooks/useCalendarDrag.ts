@@ -13,7 +13,7 @@ const STEP = 15;
 const EDGE = 48;
 const LAST_MINUTE = 23 * 60 + 59;
 
-export type DragMode = "move" | "resize";
+type DragMode = "move" | "resize";
 
 export interface DragState {
   task: ScheduledTask;

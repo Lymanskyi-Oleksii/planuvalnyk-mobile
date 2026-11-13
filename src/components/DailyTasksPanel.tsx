@@ -399,11 +399,6 @@ export function DailyTasksPanel({
               <li key={task.id} className="flex items-center gap-3 rounded-lg px-2 py-2">
                 <Checkbox checked={task.done} onChange={(v) => onToggleMultiDay(task.id, v)} />
                 <span
-                  onDoubleClick={() => {
-                    if (reordering) return;
-                    setEditingSpanId(task.id);
-                    setSpanEditDraft(task.title);
-                  }}
                   className={`min-w-0 flex-1 text-sm transition-colors ${task.done ? "text-muted line-through" : "text-ink"}`}
                 >
                   {task.title}
@@ -511,7 +506,6 @@ export function DailyTasksPanel({
             >
               <Checkbox checked={task.done} onChange={(v) => handleToggle(task.id, v)} />
               <span
-                onDoubleClick={() => !reordering && startEdit(task)}
                 className={`flex-1 text-sm transition-colors ${task.done ? "text-muted line-through" : "text-ink"}`}
               >
                 {task.title}

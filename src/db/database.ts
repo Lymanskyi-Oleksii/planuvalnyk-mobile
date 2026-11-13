@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabaseClient";
 import { getCurrentUserId, requireUserId } from "@/lib/session";
+import { isMissingTable } from "@/lib/errorText";
 import { forgetTaskReminders } from "@/lib/reminders";
 import type {
   Category,
@@ -147,10 +148,6 @@ function dropQueuedTarget(op: OfflineOp) {
 function dropQueuedExact(op: OfflineOp) {
   const text = JSON.stringify(op);
   writeQueue(readQueue().filter((o) => JSON.stringify(o) !== text));
-}
-
-export function pendingOfflineCount(): number {
-  return getCurrentUserId() ? readQueue().length : 0;
 }
 
 // Накладає одну зміну на збережені дані дня (ключ — як у readWithCache)
@@ -760,14 +757,6 @@ export async function deleteDailyTask(id: string): Promise<void> {
 }
 
 // ---------- Задачі на кілька днів (Тип 2б) ----------
-
-// Помилка «немає такої таблиці»: міграцію ще не запущено
-export function isMissingTable(error: { code?: string; message?: string } | null, table: string): boolean {
-  if (!error) return false;
-  if (error.code === "42P01" || error.code === "PGRST205") return true;
-  const message = error.message ?? "";
-  return new RegExp(table, "i").test(message) && /does not exist|could not find/i.test(message);
-}
 
 export async function getMultiDayTasks(date: string): Promise<MultiDayTask[]> {
   const userId = requireUserId();

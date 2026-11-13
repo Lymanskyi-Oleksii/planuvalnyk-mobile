@@ -77,12 +77,6 @@ export function formatDayRange(startIso: string, endIso: string): string {
   return `${part(a)} – ${part(b)}`;
 }
 
-export function nextNDays(startIso: string, n: number): string[] {
-  const out: string[] = [];
-  for (let i = 1; i <= n; i++) out.push(addDays(startIso, i));
-  return out;
-}
-
 // Повертає дати з anchor по центру: `before` днів до, сам anchor, `after` днів після
 export function centeredDays(anchorIso: string, before: number, after: number): string[] {
   const out: string[] = [];

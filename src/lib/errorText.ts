@@ -27,3 +27,11 @@ export function errorText(err: unknown, fallback = "Щось пішло не т�
   for (const [re, text] of RULES) if (re.test(message)) return text;
   return fallback;
 }
+
+// Помилка «немає такої таблиці»: міграцію ще не запущено
+export function isMissingTable(error: { code?: string; message?: string } | null, table: string): boolean {
+  if (!error) return false;
+  if (error.code === "42P01" || error.code === "PGRST205") return true;
+  const message = error.message ?? "";
+  return new RegExp(table, "i").test(message) && /does not exist|could not find/i.test(message);
+}

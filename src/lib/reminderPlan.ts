@@ -6,7 +6,7 @@ import { durationLabel, inQuietHours, type ReminderSettings } from "./settings";
 // Тут немає ні мережі, ні телефону, тому цей самий план показується
 // і в системних сповіщеннях, і на екрані налаштувань, і всередині застосунку.
 
-export type ReminderKind = "pre" | "start" | "snack" | "pulse" | "morning" | "evening";
+type ReminderKind = "pre" | "start" | "snack" | "pulse" | "morning" | "evening";
 
 export interface PlanTask {
   id: string;
@@ -114,7 +114,7 @@ function digestLines(tasks: PlanTask[], daily: PlanDailyTask[] = []): string[] {
 }
 
 /** Чи нагадувати про задачу: власне поле задачі важливіше за загальні категорії. */
-export function wantsReminder(task: Pick<PlanTask, "remind" | "category">, s: ReminderSettings): boolean {
+function wantsReminder(task: Pick<PlanTask, "remind" | "category">, s: ReminderSettings): boolean {
   return task.remind ?? s.categories.includes(task.category);
 }
 

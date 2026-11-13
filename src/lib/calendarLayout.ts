@@ -1,14 +1,14 @@
 // Геометрія погодинної сітки. Чисті функції без React.
-// Висота години (hourHeight, px) — параметр: її змінює масштаб (щипок, Ctrl + колесо).
+// Висота години (hourHeight, px) — параметр: її змінює масштаб (щипок двома пальцями).
 
 /** Висота години за замовчуванням, px. */
 export const DEFAULT_HOUR_HEIGHT = 56;
 /** Межі масштабу, px на годину. */
-export const MIN_HOUR_HEIGHT = 32;
-export const MAX_HOUR_HEIGHT = 120;
+const MIN_HOUR_HEIGHT = 32;
+const MAX_HOUR_HEIGHT = 120;
 
 /** Початок видимої області без задач. */
-export const DEFAULT_START_MINUTES = 6 * 60;
+const DEFAULT_START_MINUTES = 6 * 60;
 
 export function clampHourHeight(px: number): number {
   if (!Number.isFinite(px)) return DEFAULT_HOUR_HEIGHT;
@@ -46,10 +46,10 @@ export function initialScrollTop(startMinutes: number[], hourHeight: number): nu
 }
 
 /** Найменша висота блока, хв. */
-export const MIN_BLOCK_MINUTES = 20;
+const MIN_BLOCK_MINUTES = 20;
 
 /** Місце блока по ширині: доріжка lane з lanes у групі, що перетинається. */
-export interface BlockLane {
+interface BlockLane {
   lane: number;
   lanes: number;
 }
