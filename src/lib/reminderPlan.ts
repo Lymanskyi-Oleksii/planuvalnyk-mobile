@@ -87,11 +87,13 @@ export function toCategory(value: string): Category {
   return value in CATEGORY_LABELS ? (value as Category) : "other";
 }
 
+// Зсув рахуємо в справжніх хвилинах, а не за годинником на стіні:
+// інакше в ніч переходу на літній час «за 30 хв» прийшло б після початку задачі.
 function at(date: string, time: string, shiftMin = 0): Date {
   const d = fromISODate(date);
   const [h, m] = time.split(":").map(Number);
-  d.setHours(h, m + shiftMin, 0, 0);
-  return d;
+  d.setHours(h, m, 0, 0);
+  return new Date(d.getTime() + shiftMin * 60_000);
 }
 
 /** 1 задача, 2 задачі, 5 задач */
