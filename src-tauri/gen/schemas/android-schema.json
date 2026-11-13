@@ -2589,6 +2589,12 @@
           "markdownDescription": "Enables the take_open_date command without any pre-configured scope."
         },
         {
+          "description": "Enables the take_pending_done command without any pre-configured scope.",
+          "type": "string",
+          "const": "reminders:allow-take-pending-done",
+          "markdownDescription": "Enables the take_pending_done command without any pre-configured scope."
+        },
+        {
           "description": "Denies the ack_done command without any pre-configured scope.",
           "type": "string",
           "const": "reminders:deny-ack-done",
@@ -2641,6 +2647,12 @@
           "type": "string",
           "const": "reminders:deny-take-open-date",
           "markdownDescription": "Denies the take_open_date command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the take_pending_done command without any pre-configured scope.",
+          "type": "string",
+          "const": "reminders:deny-take-pending-done",
+          "markdownDescription": "Denies the take_pending_done command without any pre-configured scope."
         }
       ]
     },
