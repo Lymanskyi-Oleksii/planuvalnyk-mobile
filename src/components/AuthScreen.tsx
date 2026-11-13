@@ -1,3 +1,4 @@
+import { errorText } from "@/lib/errorText";
 import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -29,7 +30,7 @@ export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
         setNotice("Перевірте пошту — там лист із підтвердженням реєстрації.");
       }
     } catch (err: any) {
-      setError(err.message ?? "Щось пішло не так. Спробуйте ще раз.");
+      setError(errorText(err));
     } finally {
       setLoading(false);
     }

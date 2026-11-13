@@ -32,6 +32,7 @@ import { CATEGORY_COLORS, CATEGORY_EMOJI, type PlannedReminder } from "@/lib/rem
 import { addDays, toISODate } from "@/lib/date";
 import { toast } from "@/lib/toast";
 import { useBackHandler } from "@/lib/backButton";
+import { errorText } from "@/lib/errorText";
 import { Toggle } from "./Toggle";
 
 interface SettingsScreenProps {
@@ -315,7 +316,7 @@ export function SettingsScreen({ open, onClose, onLogout }: SettingsScreenProps)
       setPwOpen(false);
       toast.success("Пароль змінено");
     } catch (err: any) {
-      setPwError(err?.message ?? "Не вдалося змінити пароль. Спробуйте ще раз.");
+      setPwError(errorText(err, "Не вдалося змінити пароль. Спробуйте ще раз."));
     } finally {
       setPwBusy(false);
     }

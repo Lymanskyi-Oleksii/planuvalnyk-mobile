@@ -45,6 +45,7 @@ import {
 import { subscribeSettings } from "./lib/settings";
 import { SettingsScreen } from "./components/SettingsScreen";
 import { Toaster } from "./components/Toaster";
+import { errorText } from "./lib/errorText";
 import { toast } from "./lib/toast";
 import type { ScheduledTask, SeriesScope } from "./types";
 
@@ -86,11 +87,6 @@ export default function App() {
       <Toaster />
     </>
   );
-}
-
-function errorText(err: unknown): string {
-  const message = (err as { message?: unknown } | null)?.message;
-  return typeof message === "string" && message ? message : "Перевірте з'єднання з інтернетом і спробуйте ще раз.";
 }
 
 // Помилка збереження з форми: текст лишається в полях, можна спробувати ще раз
