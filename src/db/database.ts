@@ -561,17 +561,40 @@ export async function getSeriesTasksFrom(seriesId: string, fromDate: string): Pr
 }
 
 /**
+ * Пари «підзадача відредагованої задачі → підзадача копії». У самій задачі — за id.
+ * У копії — за назвою до змін: k-та підзадача з назвою X ↔ k-та з тією ж назвою в копії.
+ * Порядок у копії не важливий; підзадачі, яких у копії немає, лишаються без пари.
+ */
+function matchSubtasks(base: { id: string; title: string }[], copy: Subtask[]): Map<string, string> {
+  const pairs = new Map<string, string>();
+  const free = [...copy].sort((a, b) => a.sortOrder - b.sortOrder);
+  const take = (i: number) => free.splice(i, 1)[0].id;
+  for (const b of base) {
+    const i = free.findIndex((s) => s.id === b.id);
+    if (i >= 0) pairs.set(b.id, take(i));
+  }
+  for (const b of base) {
+    if (pairs.has(b.id)) continue;
+    const i = free.findIndex((s) => s.title === b.title);
+    if (i >= 0) pairs.set(b.id, take(i));
+  }
+  return pairs;
+}
+
+/**
  * «Цю й наступні»: однакові поля для всіх копій серії від fromDate (крім skipIds).
- * Підзадачі кожної копії зіставляються з відредагованою задачею за позицією до змін:
- * baseSubtaskIds — id її підзадач у старому порядку. Підзадача з форми на позиції k
- * оновлює k-ту підзадачу копії (done лишається), нові додаються, прибрані позиції видаляються.
+ * baseSubtasks — підзадачі відредагованої задачі на момент відкриття форми; з ними
+ * зіставляються підзадачі кожної копії (matchSubtasks). Пара отримує нову назву й місце
+ * (done лишається), пара прибраної у формі підзадачі видаляється, нові додаються.
+ * Підзадачі копії без пари (додані лише в ній чи на ПК) лишаються з галочками.
+ * Якщо підзадачу раніше прибрали лише з копії, у копію вона не повертається.
  */
 export async function updateScheduledTaskSeries(
   seriesId: string,
   fromDate: string,
   input: TaskFieldsInput & { subtasks: SubtaskDraft[] },
-  skipIds: string[] = [],
-  baseSubtaskIds: string[] = []
+  skipIds: string[],
+  baseSubtasks: { id: string; title: string }[]
 ): Promise<void> {
   const { subtasks, ...fields } = input;
   const tasks = (await getSeriesTasksFrom(seriesId, fromDate)).filter((t) => !skipIds.includes(t.id));
@@ -579,17 +602,24 @@ export async function updateScheduledTaskSeries(
     tasks.map((t) => t.id),
     fields
   );
+  const baseIds = new Set(baseSubtasks.map((s) => s.id));
   // По черзі: у серії бувають десятки копій
   for (const copy of tasks) {
-    const own = [...copy.subtasks].sort((a, b) => a.sortOrder - b.sortOrder);
-    const drafts = subtasks.map((d) => {
-      const k = d.id ? baseSubtaskIds.indexOf(d.id) : -1;
-      return { ...d, id: k >= 0 ? own[k]?.id : undefined };
+    const pairs = matchSubtasks(baseSubtasks, copy.subtasks);
+    const drafts = subtasks.flatMap((d): SubtaskDraft[] => {
+      if (!d.id || !baseIds.has(d.id)) return [{ ...d, id: undefined }];
+      const id = pairs.get(d.id);
+      return id ? [{ ...d, id }] : [];
     });
+    const paired = new Set(pairs.values());
     await syncTaskSubtasks(
       copy.id,
-      own.map((s) => s.id),
-      drafts
+      [...paired],
+      drafts,
+      [...copy.subtasks]
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .filter((s) => !paired.has(s.id))
+        .map((s) => s.id)
     );
   }
 }

@@ -180,17 +180,20 @@ export function useDayData(date: string) {
       series?: { seriesId: string; fromDate: string; skipIds: string[] }
     ) => {
       const { subtasks = [], ...rest } = input;
-      const baseSubtaskIds = baseSubtasks.map((s) => s.id);
       if (series) {
         await db.updateScheduledTaskSeries(
           series.seriesId,
           series.fromDate,
           { ...rest, subtasks },
           series.skipIds,
-          baseSubtaskIds
+          baseSubtasks.map(({ id, title }) => ({ id, title }))
         );
       } else {
-        await db.updateScheduledTask(id, { ...rest, subtasks }, baseSubtaskIds);
+        await db.updateScheduledTask(
+          id,
+          { ...rest, subtasks },
+          baseSubtasks.map((s) => s.id)
+        );
       }
       await reload();
     },
