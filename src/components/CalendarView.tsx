@@ -72,6 +72,7 @@ function currentMinutes(): number {
 }
 
 /** Відступ блока від країв колонки й від сусідніх блоків, px. */
+const DARK_TEXT_ON = new Set<string>(["sport", "food", "personal", "errands"]); // світлі кольори — темний текст (контраст ≥ 4,5:1)
 const GAP = 2;
 
 interface TaskBlockProps {
@@ -106,7 +107,7 @@ function TaskBlock({ task, hourHeight, lane, lanes, compact, onOpen, variant, co
         onOpen();
       }}
       className={`absolute overflow-hidden rounded-md text-left select-none [-webkit-touch-callout:none] ${
-        task.done ? "bg-done-bg text-done-fg" : "text-white"
+        task.done ? "bg-done-bg text-done-fg" : DARK_TEXT_ON.has(task.category) ? "text-on-light" : "text-on-solid"
       } ${compact ? "px-1 py-0.5" : "px-1.5 py-0.5"} ${variant === "dim" ? "opacity-40" : ""} ${
         ghost ? "pointer-events-none shadow-card ring-2 ring-offset-1 ring-offset-panel" : ""
       } ${ghost ? (conflict ? "ring-danger" : "ring-accent") : ""}`}
@@ -327,7 +328,7 @@ export function CalendarView({
                   </span>
                   <span
                     className={`flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold ${
-                      today ? "bg-accent text-white" : "text-ink active:bg-canvas"
+                      today ? "bg-accent text-on-accent" : "text-ink active:bg-canvas"
                     }`}
                   >
                     {dayOfMonth(d)}

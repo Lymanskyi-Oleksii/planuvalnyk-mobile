@@ -366,7 +366,7 @@ export function DailyTasksPanel({
             <button
               onClick={submitSpan}
               disabled={!spanTitle.trim() || !spanStart || !spanEnd}
-              className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent/90 disabled:opacity-40"
+              className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-on-accent hover:bg-accent/90 disabled:opacity-40"
             >
               Додати
             </button>

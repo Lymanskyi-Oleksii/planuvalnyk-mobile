@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { dismissToast, subscribeToasts, type ToastItem, type ToastKind } from "@/lib/toast";
 
-const KIND_COLOR: Record<ToastKind, string> = {
-  success: "#16A34A",
-  error: "#DC2626",
-  info: "#2F6FED",
+// Кольори з палітри (обидві теми): смужка й прогрес, значок, текст кнопки дії
+const KIND_STYLE: Record<ToastKind, { bar: string; icon: string; text: string }> = {
+  success: { bar: "bg-category-personal-fg", icon: "bg-category-personal-fg/10 text-category-personal-fg", text: "text-category-personal-fg" },
+  error: { bar: "bg-danger", icon: "bg-danger/10 text-danger", text: "text-danger" },
+  info: { bar: "bg-accent", icon: "bg-accent/10 text-accent", text: "text-accent" },
 };
 
 function KindIcon({ kind }: { kind: ToastKind }) {
@@ -40,7 +41,7 @@ function KindIcon({ kind }: { kind: ToastKind }) {
 }
 
 function ToastCard({ item }: { item: ToastItem }) {
-  const color = KIND_COLOR[item.kind];
+  const style = KIND_STYLE[item.kind];
 
   useEffect(() => {
     if (item.duration <= 0) return;
@@ -53,12 +54,11 @@ function ToastCard({ item }: { item: ToastItem }) {
       role={item.kind === "error" ? "alert" : "status"}
       className="toast-in pointer-events-auto relative w-full overflow-hidden rounded-xl2 border border-line bg-panel shadow-lg"
     >
-      <span className="absolute inset-y-0 left-0 w-1" style={{ backgroundColor: color }} />
+      <span className={`absolute inset-y-0 left-0 w-1 ${style.bar}`} />
 
       <div className="flex items-start gap-3 py-3 pl-4 pr-2">
         <span
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-base"
-          style={{ backgroundColor: `${color}1A`, color }}
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-base ${style.icon}`}
           aria-hidden="true"
         >
           <KindIcon kind={item.kind} />
@@ -76,8 +76,7 @@ function ToastCard({ item }: { item: ToastItem }) {
                 item.action?.onClick();
                 dismissToast(item.id);
               }}
-              className="mt-1.5 text-xs font-semibold"
-              style={{ color }}
+              className={`mt-1.5 text-xs font-semibold ${style.text}`}
             >
               {item.action.label}
             </button>
@@ -98,8 +97,8 @@ function ToastCard({ item }: { item: ToastItem }) {
 
       {item.duration > 0 && (
         <span
-          className="toast-progress absolute inset-x-0 bottom-0 h-0.5 origin-left"
-          style={{ backgroundColor: color, opacity: 0.35, animationDuration: `${item.duration}ms` }}
+          className={`toast-progress absolute inset-x-0 bottom-0 h-0.5 origin-left opacity-[0.35] ${style.bar}`}
+          style={{ animationDuration: `${item.duration}ms` }}
         />
       )}
     </div>

@@ -268,7 +268,7 @@ export function AddTaskModal({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Напр. Робота над проєктом"
-              className="w-full rounded-lg border border-line px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+              className="w-full rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink outline-none focus:border-accent"
             />
           </div>
 
@@ -279,7 +279,7 @@ export function AddTaskModal({
                 type="time"
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
-                className="w-full rounded-lg border border-line px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+                className="w-full rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink outline-none focus:border-accent"
               />
             </div>
             <div className="flex-1">
@@ -288,7 +288,7 @@ export function AddTaskModal({
                 type="time"
                 value={endTime}
                 onChange={(e) => setEndTime(e.target.value)}
-                className="w-full rounded-lg border border-line px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+                className="w-full rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink outline-none focus:border-accent"
               />
             </div>
           </div>
@@ -349,7 +349,7 @@ export function AddTaskModal({
                       value={repeatUntil}
                       min={addDays(date, 1)}
                       onChange={(e) => e.target.value && setRepeatUntil(e.target.value)}
-                      className="w-full rounded-lg border border-line px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+                      className="w-full rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink outline-none focus:border-accent"
                     />
                   </div>
                   {repeatWeekdays.length === 0 ? (
@@ -447,7 +447,7 @@ export function AddTaskModal({
                   }
                 }}
                 placeholder="Напр. Написати HTML"
-                className="flex-1 rounded-lg border border-line px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+                className="flex-1 rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink outline-none focus:border-accent"
               />
               <button
                 type="button"
@@ -472,7 +472,7 @@ export function AddTaskModal({
                 value={details}
                 onChange={(e) => setDetails(e.target.value)}
                 placeholder="Напр. Пообідати, відпочити"
-                className="w-full rounded-lg border border-line px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+                className="w-full rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink outline-none focus:border-accent"
               />
             </div>
           )}
@@ -497,7 +497,7 @@ export function AddTaskModal({
               <button
                 onClick={() => handleSubmit("following")}
                 disabled={!canSave || seriesPending}
-                className="rounded-lg bg-accent px-3 py-2 text-sm font-medium text-white hover:bg-accent/90 disabled:opacity-40"
+                className="rounded-lg bg-accent px-3 py-2 text-sm font-medium text-on-accent hover:bg-accent/90 disabled:opacity-40"
               >
                 Цю й наступні
               </button>
@@ -506,7 +506,7 @@ export function AddTaskModal({
             <button
               onClick={() => handleSubmit()}
               disabled={!canSave}
-              className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent/90 disabled:opacity-40"
+              className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-on-accent hover:bg-accent/90 disabled:opacity-40"
             >
               {editingTask ? "Зберегти зміни" : "Додати задачу"}
             </button>

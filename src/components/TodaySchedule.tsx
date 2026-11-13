@@ -49,7 +49,7 @@ export function TodaySchedule({
         <div className="flex items-center justify-between gap-2 sm:justify-end">
           <button
             onClick={onAddTask}
-            className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-white hover:bg-accent/90 sm:w-auto sm:py-1.5 sm:text-xs"
+            className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-on-accent hover:bg-accent/90 sm:w-auto sm:py-1.5 sm:text-xs"
           >
             <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="none">
               <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />

@@ -196,12 +196,12 @@
 - [ ] **Ручка перетягування** задач дня може перегорнути день; немає `onTouchCancel`. Ймовірно.
 
 ### Темна тема
-- [ ] hex-кольори у `Toaster.tsx:5-7`;
+- [x] hex-кольори у `Toaster.tsx:5-7`;
 - [ ] кольори категорій не адаптовані до теми;
-- [ ] білий текст на категоріях `sport` і `food` має контраст близько 2,8:1;
-- [ ] `text-white` на `accent` у темній темі — близько 3,2:1;
-- [ ] `text-white` / `bg-white` поза палітрою в `Toggle`, `Checkbox`, `WeekStrip`;
-- [ ] поля вводу без `bg-panel`.
+- [x] білий текст на категоріях `sport` і `food` має контраст близько 2,8:1;
+- [x] `text-white` на `accent` у темній темі — близько 3,2:1;
+- [x] `text-white` / `bg-white` поза палітрою в `Toggle`, `Checkbox`, `WeekStrip`;
+- [x] поля вводу без `bg-panel`.
 
 ### Тексти
 - [x] Помилки Supabase показуються англійською: `errorText`, `AuthScreen`, `SettingsScreen`.

@@ -62,7 +62,7 @@ export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="Пошта"
-            className="w-full rounded-lg border border-line px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+            className="w-full rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink outline-none focus:border-accent"
           />
           <input
             type="password"
@@ -71,7 +71,7 @@ export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Пароль (мінімум 6 символів)"
-            className="w-full rounded-lg border border-line px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+            className="w-full rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink outline-none focus:border-accent"
           />
         </div>
 
@@ -81,7 +81,7 @@ export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
         <button
           type="submit"
           disabled={loading}
-          className="mt-4 w-full rounded-lg bg-accent py-2 text-sm font-medium text-white hover:bg-accent/90 disabled:opacity-50"
+          className="mt-4 w-full rounded-lg bg-accent py-2 text-sm font-medium text-on-accent hover:bg-accent/90 disabled:opacity-50"
         >
           {loading ? "Зачекайте..." : mode === "signin" ? "Увійти" : "Зареєструватись"}
         </button>

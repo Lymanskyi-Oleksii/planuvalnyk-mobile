@@ -50,7 +50,7 @@ export function MoveScopeDialog({ open, onChoose, onCancel }: MoveScopeDialogPro
           </button>
           <button
             onClick={() => onChoose("following")}
-            className="rounded-lg bg-accent px-3 py-2 text-sm font-medium text-white"
+            className="rounded-lg bg-accent px-3 py-2 text-sm font-medium text-on-accent"
           >
             Цю й наступні
           </button>

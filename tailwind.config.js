@@ -38,6 +38,12 @@ export default {
         },
         // Затемнення під модальними вікнами
         scrim: v("scrim"),
+        // Текст на суцільних кольорах: на accent, на небезпечній кнопці й на темних кольорах категорій, на світлих кольорах категорій
+        on: {
+          accent: v("on-accent"),
+          solid: v("on-solid"),
+          light: v("on-light"),
+        },
         category: {
           study: category("study"),
           university: category("university"),

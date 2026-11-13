@@ -118,27 +118,27 @@ export function NotesPanel({
             value={spanTitle}
             onChange={(e) => setSpanTitle(e.target.value)}
             placeholder="Назва (напр. Сесія, Відпустка)"
-            className="w-full rounded-lg border border-line px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+            className="w-full rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink outline-none focus:border-accent"
           />
           <textarea
             value={spanContent}
             onChange={(e) => setSpanContent(e.target.value)}
             placeholder="Деталі (необов'язково)"
-            className="h-16 w-full resize-none rounded-lg border border-line px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+            className="h-16 w-full resize-none rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink outline-none focus:border-accent"
           />
           <div className="flex items-center gap-2">
             <input
               type="date"
               value={spanStart}
               onChange={(e) => setSpanStart(e.target.value)}
-              className="flex-1 rounded-lg border border-line px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+              className="flex-1 rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink outline-none focus:border-accent"
             />
             <span className="text-xs text-muted">до</span>
             <input
               type="date"
               value={spanEnd}
               onChange={(e) => setSpanEnd(e.target.value)}
-              className="flex-1 rounded-lg border border-line px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+              className="flex-1 rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink outline-none focus:border-accent"
             />
           </div>
           <div className="flex justify-end gap-2 pt-1">
@@ -151,7 +151,7 @@ export function NotesPanel({
             <button
               onClick={submitSpanNote}
               disabled={!spanTitle.trim() || !spanStart || !spanEnd || spanSaving}
-              className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent/90 disabled:opacity-40"
+              className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-on-accent hover:bg-accent/90 disabled:opacity-40"
             >
               Додати
             </button>

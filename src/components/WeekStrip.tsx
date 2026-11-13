@@ -73,10 +73,10 @@ export function WeekStrip({ weekAnchor, activeDate, onSelect, onShiftWeek, onGoT
                 onClick={() => onSelect(date)}
                 aria-current={active ? "date" : undefined}
                 className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-lg py-1.5 transition-colors ${
-                  active ? "bg-accent text-white" : today ? "bg-accent-soft text-accent" : "text-muted active:bg-canvas"
+                  active ? "bg-accent text-on-accent" : today ? "bg-accent-soft text-accent" : "text-muted active:bg-canvas"
                 }`}
               >
-                <span className={`text-[10px] font-medium uppercase ${active ? "text-white/80" : ""}`}>
+                <span className={`text-[10px] font-medium uppercase ${active ? "text-on-accent/80" : ""}`}>
                   {WEEKDAY_SHORT[i]}
                 </span>
                 <span className={`text-sm font-bold ${active || today ? "" : "text-ink"}`}>
@@ -84,7 +84,7 @@ export function WeekStrip({ weekAnchor, activeDate, onSelect, onShiftWeek, onGoT
                 </span>
                 <span
                   className={`h-1 w-1 rounded-full ${
-                    dot ? (active ? "bg-white" : "bg-accent") : "bg-transparent"
+                    dot ? (active ? "bg-on-accent" : "bg-accent") : "bg-transparent"
                   }`}
                 />
               </button>

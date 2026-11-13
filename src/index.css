@@ -15,11 +15,14 @@
   --c-muted: 107 114 128;
   --c-accent: 47 111 237;
   --c-accent-soft: 234 241 255;
+  --c-on-accent: 255 255 255; /* текст на суцільному accent */
+  --c-on-light: 27 32 41; /* темний текст на світлих суцільних кольорах категорій */
 
   --c-danger: 220 38 38;
   --c-danger-soft: 254 242 242;
   --c-danger-line: 254 202 202;
   --c-danger-strong: 220 38 38;
+  --c-on-solid: 255 255 255; /* білий текст на суцільних кольорах */
   --c-scrim: 0 0 0;
 
   --c-study-fg: 37 99 235;
@@ -58,11 +61,14 @@
   --c-muted: 156 163 175;
   --c-accent: 91 141 239;
   --c-accent-soft: 30 43 74;
+  --c-on-accent: 15 17 21;
+  --c-on-light: 27 32 41;
 
   --c-danger: 248 113 113;
   --c-danger-soft: 58 26 28;
   --c-danger-line: 127 29 29;
   --c-danger-strong: 220 38 38;
+  --c-on-solid: 255 255 255; /* білий текст на суцільних кольорах */
   --c-scrim: 0 0 0;
 
   --c-study-fg: 96 165 250;
