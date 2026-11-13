@@ -11,6 +11,9 @@ export function useDayData(date: string) {
   const [note, setNote] = useState<DayNote>({ date: "", content: "" });
   const [multiDayNotes, setMultiDayNotes] = useState<MultiDayNote[]>([]);
   const [loading, setLoading] = useState(true);
+  // Актуальні заплановані задачі: щоб рахувати зміни поза setState
+  const scheduledTasksRef = useRef<ScheduledTask[]>([]);
+  scheduledTasksRef.current = scheduledTasks;
 
   // Номер останнього читання: відповідь старішого (напр. попереднього дня при
   // швидкому гортанні на повільній мережі) не має лягти на екран поверх свіжого
@@ -72,18 +75,18 @@ export function useDayData(date: string) {
   // і навпаки: зняття галочки з будь-якої підзадачі знімає й з основної.
   const toggleSubtask = useCallback(async (id: string, done: boolean) => {
     await db.toggleSubtask(id, done);
-    setScheduledTasks((prev) =>
-      prev.map((t) => {
-        if (!t.subtasks.some((s) => s.id === id)) return t;
-        const updatedSubtasks = t.subtasks.map((s) => (s.id === id ? { ...s, done } : s));
-        const allDone = updatedSubtasks.length > 0 && updatedSubtasks.every((s) => s.done);
-        const nextDone = allDone ? true : done ? t.done : false;
-        if (nextDone !== t.done) {
-          db.toggleScheduledTask(t.id, nextDone);
-        }
-        return { ...t, subtasks: updatedSubtasks, done: nextDone };
-      })
-    );
+    const parentChanges: { id: string; done: boolean }[] = [];
+    const next = scheduledTasksRef.current.map((t) => {
+      if (!t.subtasks.some((s) => s.id === id)) return t;
+      const updatedSubtasks = t.subtasks.map((s) => (s.id === id ? { ...s, done } : s));
+      const allDone = updatedSubtasks.length > 0 && updatedSubtasks.every((s) => s.done);
+      const nextDone = allDone ? true : done ? t.done : false;
+      if (nextDone !== t.done) parentChanges.push({ id: t.id, done: nextDone });
+      return { ...t, subtasks: updatedSubtasks, done: nextDone };
+    });
+    scheduledTasksRef.current = next;
+    setScheduledTasks(next);
+    for (const change of parentChanges) db.toggleScheduledTask(change.id, change.done);
   }, []);
 
   const toggleDailyTask = useCallback(async (id: string, done: boolean) => {
