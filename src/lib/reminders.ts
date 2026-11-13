@@ -327,13 +327,9 @@ export async function sendTestNotification(): Promise<TestResult> {
     const test = { ...TEST_REMINDER, silent: settings.alertMode === "silent" };
     const when = new Date(Date.now() + 5_000);
     if (isAndroid()) {
-      // План на Android замінюється цілком, тож тест додаємо до чинного плану
-      await enqueue(() =>
-        scheduleAndroid([
-          ...status.plan.map((p) => toNative(p, settings.alertMode)),
-          toNative(test, settings.alertMode, when),
-        ])
-      );
+      // Лише додаємо тест до плану на телефоні. Не через schedule зі status.plan:
+      // після старту без мережі він порожній, і тест стер би весь план.
+      await enqueue(() => invoke("plugin:reminders|add", { reminder: toNative(test, settings.alertMode, when) }));
     } else {
       deliver(test, settings.alertMode, when);
     }

@@ -11,7 +11,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 // Плагін Tauri «reminders»: JS передає весь план нагадувань одним викликом.
-// Виклики з JS: plugin:reminders|schedule, |cancel_all, |sign_out, |pending_done, |ack_done,
+// Виклики з JS: plugin:reminders|schedule, |add, |cancel_all, |sign_out, |pending_done, |ack_done,
 // |set_auth, |take_open_date (Tauri перетворює snake_case на camelCase-методи).
 @TauriPlugin
 class RemindersPlugin(private val activity: Activity) : Plugin(activity) {
@@ -22,6 +22,18 @@ class RemindersPlugin(private val activity: Activity) : Plugin(activity) {
       val list = ReminderAlarms.parse(invoke.getArgs().getJSONArray("reminders"))
       // Новий план замінює попередній (крім відкладених кнопкою нагадувань)
       ReminderAlarms.replacePlan(activity.applicationContext, list)
+      invoke.resolve()
+    } catch (e: Exception) {
+      invoke.reject("Не вдалося запланувати нагадування: ${e.message}")
+    }
+  }
+
+  // Аргументи: { reminder } — одне нагадування (тестове) поверх чинного плану
+  @Command
+  fun add(invoke: Invoke) {
+    try {
+      val r = Reminder.fromJson(invoke.getArgs().getJSONObject("reminder"))
+      ReminderAlarms.add(activity.applicationContext, r)
       invoke.resolve()
     } catch (e: Exception) {
       invoke.reject("Не вдалося запланувати нагадування: ${e.message}")

@@ -2529,16 +2529,22 @@
           "markdownDescription": "Denies the version command without any pre-configured scope."
         },
         {
-          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-schedule`\n- `allow-cancel-all`\n- `allow-sign-out`\n- `allow-pending-done`\n- `allow-ack-done`\n- `allow-set-auth`\n- `allow-take-open-date`",
+          "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-schedule`\n- `allow-add`\n- `allow-cancel-all`\n- `allow-sign-out`\n- `allow-pending-done`\n- `allow-ack-done`\n- `allow-set-auth`\n- `allow-take-open-date`",
           "type": "string",
           "const": "reminders:default",
-          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-schedule`\n- `allow-cancel-all`\n- `allow-sign-out`\n- `allow-pending-done`\n- `allow-ack-done`\n- `allow-set-auth`\n- `allow-take-open-date`"
+          "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `allow-schedule`\n- `allow-add`\n- `allow-cancel-all`\n- `allow-sign-out`\n- `allow-pending-done`\n- `allow-ack-done`\n- `allow-set-auth`\n- `allow-take-open-date`"
         },
         {
           "description": "Enables the ack_done command without any pre-configured scope.",
           "type": "string",
           "const": "reminders:allow-ack-done",
           "markdownDescription": "Enables the ack_done command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the add command without any pre-configured scope.",
+          "type": "string",
+          "const": "reminders:allow-add",
+          "markdownDescription": "Enables the add command without any pre-configured scope."
         },
         {
           "description": "Enables the cancel_all command without any pre-configured scope.",
@@ -2581,6 +2587,12 @@
           "type": "string",
           "const": "reminders:deny-ack-done",
           "markdownDescription": "Denies the ack_done command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the add command without any pre-configured scope.",
+          "type": "string",
+          "const": "reminders:deny-add",
+          "markdownDescription": "Denies the add command without any pre-configured scope."
         },
         {
           "description": "Denies the cancel_all command without any pre-configured scope.",

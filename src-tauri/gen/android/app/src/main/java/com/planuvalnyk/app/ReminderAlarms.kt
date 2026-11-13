@@ -157,6 +157,15 @@ object ReminderAlarms {
     Log.d(TAG, "replacePlan: нових ${plan.size}, збережено відкладених ${keep.size}")
   }
 
+  /** Одне нагадування до збереженого плану (тестове), решта плану не змінюється. */
+  @Synchronized
+  fun add(ctx: Context, r: Reminder) {
+    val list = load(ctx).filter { it.id != r.id } + r
+    save(ctx, list)
+    set(ctx, r.id, r.whenMs)
+    Log.d(TAG, "add: id=${r.id}, у плані ${list.size}")
+  }
+
   /** Скасовує будильники збереженого плану й очищає його. */
   @Synchronized
   fun cancelAll(ctx: Context) {
