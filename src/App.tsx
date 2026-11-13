@@ -48,8 +48,6 @@ import { Toaster } from "./components/Toaster";
 import { toast } from "./lib/toast";
 import type { ScheduledTask, SeriesScope } from "./types";
 
-const TODAY = toISODate(new Date());
-
 export default function App() {
   // undefined = ще перевіряємо сесію, null = не авторизований, Session = увійшли
   const [session, setSession] = useState<Session | null | undefined>(undefined);
@@ -100,7 +98,7 @@ const SAVE_FAILED_MESSAGE = "Перевірте з'єднання з інтер�
 const RETRY_MESSAGE = "Перевірте з'єднання з інтернетом і спробуйте ще раз.";
 
 function PlannerApp() {
-  const [activeDate, setActiveDate] = useState(TODAY);
+  const [activeDate, setActiveDate] = useState(() => toISODate(new Date()));
   const [activeTab, setActiveTab] = useState<MobileTab>("day");
   const view = useView();
   // «Сьогодні» в календарі знову веде до першої задачі
@@ -307,8 +305,10 @@ function PlannerApp() {
   );
 
   function goToday() {
-    setActiveDate(TODAY);
-    setWeekViewAnchor(weekDates(TODAY)[3]);
+    // Дата береться в момент натискання: застосунок міг лишитися в пам'яті через північ
+    const today = toISODate(new Date());
+    setActiveDate(today);
+    setWeekViewAnchor(weekDates(today)[3]);
     setCalendarJump((n) => n + 1);
   }
 
