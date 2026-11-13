@@ -39,7 +39,7 @@ export function NotesPanel({
 
   // Форма очищається лише після успішного збереження; при помилці текст лишається
   async function submitSpanNote() {
-    if (!spanTitle.trim() || spanSaving) return;
+    if (!spanTitle.trim() || !spanStart || !spanEnd || spanSaving) return;
     setSpanSaving(true);
     const saved = await onAddMultiDayNote({
       title: spanTitle.trim(),
@@ -150,7 +150,7 @@ export function NotesPanel({
             </button>
             <button
               onClick={submitSpanNote}
-              disabled={!spanTitle.trim() || spanSaving}
+              disabled={!spanTitle.trim() || !spanStart || !spanEnd || spanSaving}
               className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent/90 disabled:opacity-40"
             >
               Додати
