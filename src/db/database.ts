@@ -489,12 +489,20 @@ function taskRow(
   return row;
 }
 
+// Помилка «немає такої функції»: міграцію ще не запущено
+function isMissingFunction(error: { code?: string; message?: string } | null, name: string): boolean {
+  if (!error) return false;
+  if (error.code === "PGRST202" || error.code === "42883") return true;
+  return new RegExp(name, "i").test(error.message ?? "") && /could not find|does not exist/i.test(error.message ?? "");
+}
+
 /**
  * Нова задача з підзадачами; якщо дат кілька — повторювана: однакові копії на кожну
- * дату зі спільним series_id. Задачі йдуть одним запитом, підзадачі — другим. Якщо
- * другий не вдався, задачі видаляються (підзадачі з ними — каскадом), щоб не лишилося
- * задачі без частини підзадач. Id задач створюємо самі: так знаємо, що прибирати,
- * навіть коли відповідь на вставку загубилася.
+ * дату зі спільним series_id. Записує все однією транзакцією через функцію
+ * create_scheduled_tasks (migration_create_tasks.sql). Поки її немає: задачі одним
+ * запитом, підзадачі — другим, а якщо другий не вдався, задачі видаляються
+ * (підзадачі з ними — каскадом), щоб не лишилося задачі без частини підзадач.
+ * Id задач створюємо самі: так знаємо, що прибирати, навіть коли відповідь загубилася.
  */
 export async function createScheduledTasks(
   input: {
@@ -512,8 +520,17 @@ export async function createScheduledTasks(
   const userId = requireUserId();
   const seriesId = dates.length > 1 ? crypto.randomUUID() : undefined;
   const ids = dates.map(() => crypto.randomUUID());
+  const taskRows = dates.map((d, i) => taskRow(userId, d, input, ids[i], seriesId));
+
+  const rpc = await supabase.rpc("create_scheduled_tasks", {
+    tasks: taskRows,
+    subtask_titles: input.subtasks,
+  });
+  if (!rpc.error) return;
+  if (!isMissingFunction(rpc.error, "create_scheduled_tasks")) throw rpc.error;
+
   try {
-    await insertTaskRows(dates.map((d, i) => taskRow(userId, d, input, ids[i], seriesId)));
+    await insertTaskRows(taskRows);
     const rows = ids.flatMap((taskId) =>
       input.subtasks.map((title, i) => ({ task_id: taskId, title, sort_order: i }))
     );
