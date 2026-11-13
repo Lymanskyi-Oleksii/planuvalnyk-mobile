@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import * as db from "@/db/database";
+import { toast } from "@/lib/toast";
 import type { Category, DailyTask, DayNote, MultiDayNote, MultiDayTask, ScheduledTask, SeriesScope, SubtaskDraft } from "@/types";
 
 export function useDayData(date: string) {
@@ -11,21 +12,46 @@ export function useDayData(date: string) {
   const [multiDayNotes, setMultiDayNotes] = useState<MultiDayNote[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Номер останнього читання: відповідь старішого (напр. попереднього дня при
+  // швидкому гортанні на повільній мережі) не має лягти на екран поверх свіжого
+  const requestRef = useRef(0);
+  // День, чиї задачі зараз на екрані
+  const shownDateRef = useRef<string | null>(null);
+
   const reload = useCallback(async () => {
+    const request = ++requestRef.current;
     setLoading(true);
-    const [tasks, daily, spanningTasks, dayNote, spanning] = await Promise.all([
-      db.getScheduledTasks(date),
-      db.getDailyTasks(date),
-      db.getMultiDayTasks(date),
-      db.getNote(date),
-      db.getMultiDayNotes(date),
-    ]);
-    setScheduledTasks(tasks);
-    setDailyTasks(daily);
-    setMultiDayTasks(spanningTasks);
-    setNote(dayNote);
-    setMultiDayNotes(spanning);
-    setLoading(false);
+    try {
+      const [tasks, daily, spanningTasks, dayNote, spanning] = await Promise.all([
+        db.getScheduledTasks(date),
+        db.getDailyTasks(date),
+        db.getMultiDayTasks(date),
+        db.getNote(date),
+        db.getMultiDayNotes(date),
+      ]);
+      if (request !== requestRef.current) return;
+      setScheduledTasks(tasks);
+      setDailyTasks(daily);
+      setMultiDayTasks(spanningTasks);
+      setNote(dayNote);
+      setMultiDayNotes(spanning);
+      shownDateRef.current = date;
+    } catch (err) {
+      if (request !== requestRef.current) return;
+      // eslint-disable-next-line no-console
+      console.error("Не вдалося завантажити день:", err);
+      // Під новою датою не лишаємо задач попереднього дня: галочка змінила б не той день
+      if (shownDateRef.current !== date) {
+        setScheduledTasks([]);
+        setDailyTasks([]);
+        setMultiDayTasks([]);
+        setMultiDayNotes([]);
+        shownDateRef.current = null;
+      }
+      toast.error("Не вдалося завантажити день", { message: "Спробуйте ще раз трохи згодом." });
+    } finally {
+      if (request === requestRef.current) setLoading(false);
+    }
   }, [date]);
 
   useEffect(() => {
