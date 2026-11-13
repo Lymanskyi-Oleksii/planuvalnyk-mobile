@@ -170,8 +170,10 @@ function DayNoteField({ content, onSave }: DayNoteFieldProps) {
   const onSaveRef = useRef(onSave);
   onSaveRef.current = onSave;
 
+  // Нотатка з бази замінює текст у полі, лише коли незбереженого набору немає:
+  // перезавантаження дня (повернення в застосунок, поява мережі) не стирає щойно набране
   useEffect(() => {
-    if (content !== null) setValue(content);
+    if (content !== null && pendingRef.current === null) setValue(content);
   }, [content]);
 
   // Вихід кнопкою «Назад» не має з'їсти текст, який ще чекає збереження

@@ -17,9 +17,13 @@ export function useDayData(date: string) {
   const requestRef = useRef(0);
   // День, чиї задачі зараз на екрані
   const shownDateRef = useRef<string | null>(null);
+  // Записи нотаток за днями: скільки разів і що записано останнім. Читання, під час
+  // якого нотатку зберегли, могло прочитати з бази старіший текст — його не показуємо.
+  const noteWritesRef = useRef(new Map<string, { count: number; content: string }>());
 
   const reload = useCallback(async () => {
     const request = ++requestRef.current;
+    const noteWritesBefore = noteWritesRef.current.get(date)?.count ?? 0;
     setLoading(true);
     try {
       const [tasks, daily, spanningTasks, dayNote, spanning] = await Promise.all([
@@ -33,7 +37,8 @@ export function useDayData(date: string) {
       setScheduledTasks(tasks);
       setDailyTasks(daily);
       setMultiDayTasks(spanningTasks);
-      setNote(dayNote);
+      const noteWrite = noteWritesRef.current.get(date);
+      setNote(noteWrite && noteWrite.count !== noteWritesBefore ? { date, content: noteWrite.content } : dayNote);
       setMultiDayNotes(spanning);
       shownDateRef.current = date;
     } catch (err) {
@@ -208,6 +213,8 @@ export function useDayData(date: string) {
       // Таймер автозбереження міг спрацювати вже після переходу на інший день:
       // текст іде в базу свого дня, а на екрані лишається нотатка нового.
       setNote((prev) => (prev.date === date ? { date, content } : prev));
+      const count = (noteWritesRef.current.get(date)?.count ?? 0) + 1;
+      noteWritesRef.current.set(date, { count, content });
       await db.saveNote(date, content);
     },
     [date]
