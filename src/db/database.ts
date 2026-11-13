@@ -195,22 +195,45 @@ function patchCache(op: OfflineOp) {
   }
 }
 
-async function sendOp(op: OfflineOp): Promise<void> {
-  let error: unknown = null;
-  if (op.kind === "scheduledDone") {
-    ({ error } = await supabase.from("scheduled_tasks").update({ done: op.done }).eq("id", op.id));
-  } else if (op.kind === "subtaskDone") {
-    ({ error } = await supabase.from("subtasks").update({ done: op.done }).eq("id", op.id));
-  } else if (op.kind === "dailyDone") {
-    ({ error } = await supabase.from("daily_tasks").update({ done: op.done }).eq("id", op.id));
-  } else if (op.kind === "multiDayTaskDone") {
-    ({ error } = await supabase.from("multi_day_tasks").update({ done: op.done }).eq("id", op.id));
-  } else {
-    ({ error } = await supabase
+const DONE_TABLES = {
+  scheduledDone: "scheduled_tasks",
+  subtaskDone: "subtasks",
+  dailyDone: "daily_tasks",
+  multiDayTaskDone: "multi_day_tasks",
+} as const;
+
+// Записує одну зміну. Для галочки повертає, скільки рядків змінено
+// (0 — задачу видалено або сесії немає), для нотатки — null.
+// Помилка несе HTTP-статус відповіді в полі status.
+async function sendOp(op: OfflineOp): Promise<number | null> {
+  if (op.kind === "note") {
+    const { error, status } = await supabase
       .from("notes")
-      .upsert({ user_id: requireUserId(), date: op.date, content: op.content }, { onConflict: "user_id,date" }));
+      .upsert({ user_id: requireUserId(), date: op.date, content: op.content }, { onConflict: "user_id,date" });
+    if (error) throw Object.assign(error, { status });
+    return null;
   }
-  if (error) throw error;
+  const { data, error, status } = await supabase
+    .from(DONE_TABLES[op.kind])
+    .update({ done: op.done })
+    .eq("id", op.id)
+    .select("id");
+  if (error) throw Object.assign(error, { status });
+  return data?.length ?? 0;
+}
+
+// Помилка, після якої зміну варто надіслати пізніше, а не викидати:
+// токен прострочено чи його немає (401/403), сервер перевантажений або впав
+function isRetryableError(err: unknown): boolean {
+  const status = (err as { status?: unknown } | null)?.status;
+  if (typeof status !== "number") return false;
+  return status === 0 || status === 401 || status === 403 || status === 408 || status === 429 || status >= 500;
+}
+
+async function hasSession(): Promise<boolean> {
+  // getSession оновлює прострочений токен; без мережі сесії може не бути — тоді чекаємо
+  const { data } = await supabase.auth.getSession();
+  return !!data.session;
 }
 
 // Відправка черги, яка йде зараз. Одночасно — лише одна.
@@ -243,9 +266,12 @@ export function flushOfflineQueue(): Promise<number> {
   return flushing;
 }
 
-// Без мережі зупиняється й лишає решту; інші помилки (напр. задачу вже видалено) пропускає.
+// Без мережі, без сесії, на 401 чи 5xx зупиняється й лишає решту до наступного разу.
+// Інші помилки (напр. задачу вже видалено) пропускає.
 async function sendQueue(): Promise<number> {
   if (!getCurrentUserId()) return 0;
+  if (readQueue().length === 0) return 0;
+  if (!(await hasSession())) return 0;
   let sent = 0;
   const tried = new Set<string>();
   for (;;) {
@@ -255,10 +281,12 @@ async function sendQueue(): Promise<number> {
     if (!op) break;
     tried.add(JSON.stringify(op));
     try {
-      await sendOp(op);
-      sent++;
+      const changed = await sendOp(op);
+      // 0 рядків без помилки: задачу видалено або сесія зникла дорогою — тоді лишаємо
+      if (changed === 0 && !(await hasSession())) break;
+      if (changed !== 0) sent++;
     } catch (err) {
-      if (isNetworkError(err)) break;
+      if (isNetworkError(err) || isRetryableError(err)) break;
       // eslint-disable-next-line no-console
       console.error("Зміну з офлайн-черги не записано:", err);
     }
