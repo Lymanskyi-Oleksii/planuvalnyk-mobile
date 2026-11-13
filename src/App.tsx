@@ -30,7 +30,7 @@ import {
   takeOpenDate,
 } from "./lib/reminders";
 import { onAppResume } from "./lib/appResume";
-import { initBackButton, setRootBackHandler } from "./lib/backButton";
+import { initBackButton, setBackTab, setRootBackHandler } from "./lib/backButton";
 import {
   clearOfflineData,
   flushOfflineQueue,
@@ -264,6 +264,9 @@ function PlannerApp() {
   useEffect(() => {
     void initBackButton();
   }, []);
+  useEffect(() => {
+    setBackTab(activeTab);
+  }, [activeTab]);
   useEffect(() => {
     setRootBackHandler(() => {
       if (activeTab === "day") return false;

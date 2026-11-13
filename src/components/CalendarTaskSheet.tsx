@@ -17,7 +17,7 @@ interface CalendarTaskSheetProps {
 // Нижня панель з деталями задачі з календаря: усередині той самий рядок, що й у «Списку».
 // Закривається тапом поза панеллю і кнопкою «Назад».
 export function CalendarTaskSheet({ task, onClose, onToggleTask, onToggleSubtask, onEdit, onDelete }: CalendarTaskSheetProps) {
-  useBackHandler(task !== null, onClose);
+  useBackHandler(task !== null, onClose, "day");
   if (!task) return null;
 
   // Портал: панель поза сіткою, а дотики не доходять до свайпу днів у App.tsx

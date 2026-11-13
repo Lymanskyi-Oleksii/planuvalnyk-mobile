@@ -8,25 +8,35 @@ import { platform } from "@tauri-apps/plugin-os";
 // щось зробити сам (setRootBackHandler, напр. повернутися на вкладку «День»),
 // а інакше застосунок закривається. На комп'ютері й у браузері нічого не робить.
 
-const stack: { id: number; close: () => void }[] = [];
+const stack: { id: number; tab?: string; close: () => void }[] = [];
+let currentTab: string | null = null;
 let nextId = 1;
 let rootHandler: (() => boolean) | null = null;
 const beforeExit = new Set<() => unknown>();
 
-/** Поки active, «Назад» викликає close замість виходу із застосунку. */
-export function useBackHandler(active: boolean, close: () => void) {
+/**
+ * Поки active, «Назад» викликає close замість виходу із застосунку.
+ * tab — для форм на вкладках: приховані вкладки лишаються змонтованими,
+ * тож їхня відкрита форма не повинна перехоплювати «Назад» на іншій вкладці.
+ */
+export function useBackHandler(active: boolean, close: () => void, tab?: string) {
   const closeRef = useRef(close);
   closeRef.current = close;
 
   useEffect(() => {
     if (!active) return;
     const id = nextId++;
-    stack.push({ id, close: () => closeRef.current() });
+    stack.push({ id, tab, close: () => closeRef.current() });
     return () => {
       const i = stack.findIndex((e) => e.id === id);
       if (i >= 0) stack.splice(i, 1);
     };
-  }, [active]);
+  }, [active, tab]);
+}
+
+/** Яка вкладка зараз на екрані (для обробників із параметром tab). */
+export function setBackTab(tab: string | null) {
+  currentTab = tab;
 }
 
 /** Що робити на головному екрані; повертає true, якщо «Назад» оброблено. */
@@ -43,7 +53,7 @@ export function onBeforeExit(fn: () => unknown): () => void {
 }
 
 async function handleBack() {
-  const top = stack[stack.length - 1];
+  const top = [...stack].reverse().find((e) => e.tab === undefined || e.tab === currentTab);
   if (top) {
     top.close();
     return;

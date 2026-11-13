@@ -113,9 +113,9 @@ export function DailyTasksPanel({
     }
   }
 
-  useBackHandler(addingSpan, () => setAddingSpan(false));
-  useBackHandler(editingSpanId !== null, () => setEditingSpanId(null));
-  useBackHandler(confirmingDeleteId !== null, () => setConfirmingDeleteId(null));
+  useBackHandler(addingSpan, () => setAddingSpan(false), "tasks");
+  useBackHandler(editingSpanId !== null, () => setEditingSpanId(null), "tasks");
+  useBackHandler(confirmingDeleteId !== null, () => setConfirmingDeleteId(null), "tasks");
   const [reordering, setReordering] = useState(false);
   const [drag, setDrag] = useState<DragState | null>(null);
   const itemRefs = useRef(new Map<string, HTMLLIElement>());
@@ -201,9 +201,9 @@ export function DailyTasksPanel({
   useBackHandler(adding, () => {
     setAdding(false);
     setDraft("");
-  });
-  useBackHandler(editingId !== null, () => setEditingId(null));
-  useBackHandler(reordering, exitReordering);
+  }, "tasks");
+  useBackHandler(editingId !== null, () => setEditingId(null), "tasks");
+  useBackHandler(reordering, exitReordering, "tasks");
 
   // Куди зараз "потрапляє" задача, яку тягнуть, за поточним зсувом.
   const liveIndex = drag

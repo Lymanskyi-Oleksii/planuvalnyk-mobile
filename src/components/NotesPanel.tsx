@@ -30,7 +30,7 @@ export function NotesPanel({
   const [spanSaving, setSpanSaving] = useState(false);
 
   // «Назад» закриває форму нотатки на кілька днів
-  useBackHandler(addingSpan, () => setAddingSpan(false));
+  useBackHandler(addingSpan, () => setAddingSpan(false), "notes");
 
   useEffect(() => {
     setSpanStart(date);

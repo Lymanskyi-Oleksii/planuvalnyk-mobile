@@ -57,7 +57,7 @@ export function ScheduleRow({ task, onToggleTask, onToggleSubtask, onEdit, onDel
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const hasSubtasks = task.subtasks.length > 0;
   // «Назад» скасовує підтвердження видалення
-  useBackHandler(confirmingDelete, () => setConfirmingDelete(false));
+  useBackHandler(confirmingDelete, () => setConfirmingDelete(false), "day");
 
   // Коли задачу позначено виконаною — згортаємо список підзадач,
   // щоб рядок одразу виглядав завершеним і не займав місце деталями,
