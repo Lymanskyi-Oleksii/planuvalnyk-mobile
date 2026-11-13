@@ -60,10 +60,10 @@ object ReminderSync {
       conn.doOutput = true
       conn.outputStream.use { it.write("""{"done":true}""".toByteArray()) }
       val code = conn.responseCode
-      Log.d(ReminderAlarms.TAG, "sync: task=$taskId → HTTP $code")
+      Log.d(ReminderAlarms.TAG, "sync: task=${ReminderAlarms.hidden(taskId)} → HTTP $code")
       code in 200..299
     } catch (e: Exception) {
-      Log.d(ReminderAlarms.TAG, "sync: помилка мережі — ${e.message}")
+      Log.d(ReminderAlarms.TAG, "sync: помилка мережі — ${ReminderAlarms.hidden(e.message)}")
       false
     } finally {
       conn?.disconnect()

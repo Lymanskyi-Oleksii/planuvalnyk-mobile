@@ -66,6 +66,9 @@ object ReminderAlarms {
   private const val KEY_PENDING_DONE = "pending_done"
   const val EXTRA_ID = "id"
 
+  /** Назви задач, їхні id і тексти помилок (там буває адреса з id) — у Logcat лише debug-збірки. */
+  fun hidden(value: String?): String = if (BuildConfig.DEBUG) value.toString() else "(приховано)"
+
   fun parse(arr: JSONArray): List<Reminder> =
     (0 until arr.length()).map { Reminder.fromJson(arr.getJSONObject(it)) }
 
@@ -221,7 +224,7 @@ object ReminderAlarms {
     if (taskId !in queue) queue.add(taskId)
     // commit: процес після receiver-а може бути зупинений будь-якої миті
     prefs.edit().putString(KEY_PENDING_DONE, JSONArray(queue).toString()).commit()
-    Log.d(TAG, "markDone: task=$taskId, знято будильників ${task.size}, у черзі ${queue.size}")
+    Log.d(TAG, "markDone: task=${hidden(taskId)}, знято будильників ${task.size}, у черзі ${queue.size}")
   }
 
   /** Задачу позначили виконаною в застосунку: прибрати її нагадування, разом із відкладеними. */

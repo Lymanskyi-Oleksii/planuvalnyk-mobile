@@ -12,7 +12,7 @@ import org.json.JSONObject
 class ReminderActionReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
     val id = intent.getIntExtra(ReminderAlarms.EXTRA_ID, -1)
-    Log.d(ReminderAlarms.TAG, "action: ${intent.action}, id=$id, task=${intent.getStringExtra(EXTRA_TASK_ID)}")
+    Log.d(ReminderAlarms.TAG, "action: ${intent.action}, id=$id, task=${ReminderAlarms.hidden(intent.getStringExtra(EXTRA_TASK_ID))}")
     if (id == -1) return
     NotificationManagerCompat.from(context).cancel(id)
 

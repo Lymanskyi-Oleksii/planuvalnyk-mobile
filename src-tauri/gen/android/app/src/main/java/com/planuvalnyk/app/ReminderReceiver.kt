@@ -23,7 +23,7 @@ class ReminderReceiver : BroadcastReceiver() {
       return
     }
     val lateSec = (System.currentTimeMillis() - reminder.whenMs) / 1000
-    Log.d(ReminderAlarms.TAG, "receiver: id=$id «${reminder.title}», запізнення ${lateSec} с")
+    Log.d(ReminderAlarms.TAG, "receiver: id=$id «${ReminderAlarms.hidden(reminder.title)}», запізнення ${lateSec} с")
     show(context, reminder)
   }
 
