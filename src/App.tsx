@@ -516,9 +516,7 @@ function PlannerApp() {
             }`}
           >
             <div className={onlyOnTab("notes")}>
-              {/* key: окремий стан поля для кожного дня, щоб текст не перейшов на інший */}
               <NotesPanel
-                key={activeDate}
                 date={activeDate}
                 content={note.date === activeDate ? note.content : null}
                 onSave={saveNote}

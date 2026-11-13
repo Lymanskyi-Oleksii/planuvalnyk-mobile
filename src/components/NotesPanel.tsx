@@ -21,10 +21,6 @@ export function NotesPanel({
   onAddMultiDayNote,
   onDeleteMultiDayNote,
 }: NotesPanelProps) {
-  const [value, setValue] = useState(content ?? "");
-  const [savedAt, setSavedAt] = useState<number | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout>>();
-
   const [addingSpan, setAddingSpan] = useState(false);
   const [spanTitle, setSpanTitle] = useState("");
   const [spanContent, setSpanContent] = useState("");
@@ -32,41 +28,13 @@ export function NotesPanel({
   const [spanEnd, setSpanEnd] = useState(date);
   const [spanSaving, setSpanSaving] = useState(false);
 
-  useEffect(() => {
-    if (content !== null) setValue(content);
-  }, [content]);
-
   // «Назад» закриває форму нотатки на кілька днів
   useBackHandler(addingSpan, () => setAddingSpan(false));
 
-  // Вихід кнопкою «Назад» не має з'їсти текст, який ще чекає збереження
-  const pendingRef = useRef<string | null>(null);
-  useEffect(
-    () =>
-      onBeforeExit(() => {
-        if (pendingRef.current === null) return;
-        if (timer.current) clearTimeout(timer.current);
-        const text = pendingRef.current;
-        pendingRef.current = null;
-        return onSave(text);
-      }),
-    [onSave]
-  );
   useEffect(() => {
     setSpanStart(date);
     setSpanEnd(date);
   }, [date]);
-
-  function handleChange(next: string) {
-    setValue(next);
-    pendingRef.current = next;
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => {
-      pendingRef.current = null;
-      onSave(next);
-      setSavedAt(Date.now());
-    }, 600);
-  }
 
   // Форма очищається лише після успішного збереження; при помилці текст лишається
   async function submitSpanNote() {
@@ -181,6 +149,69 @@ export function NotesPanel({
         </div>
       )}
 
+      {/* key: окреме поле для кожного дня, щоб текст одного дня не перейшов на інший */}
+      <DayNoteField key={date} content={content} onSave={onSave} />
+    </section>
+  );
+}
+
+interface DayNoteFieldProps {
+  content: string | null; // null — нотатку цього дня ще не завантажено
+  onSave: (content: string) => void | Promise<void>;
+}
+
+// Нотатка одного дня з автозбереженням
+function DayNoteField({ content, onSave }: DayNoteFieldProps) {
+  const [value, setValue] = useState(content ?? "");
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout>>();
+  // Текст, який ще чекає збереження
+  const pendingRef = useRef<string | null>(null);
+  const onSaveRef = useRef(onSave);
+  onSaveRef.current = onSave;
+
+  useEffect(() => {
+    if (content !== null) setValue(content);
+  }, [content]);
+
+  // Вихід кнопкою «Назад» не має з'їсти текст, який ще чекає збереження
+  useEffect(
+    () =>
+      onBeforeExit(() => {
+        if (pendingRef.current === null) return;
+        if (timer.current) clearTimeout(timer.current);
+        const text = pendingRef.current;
+        pendingRef.current = null;
+        return onSaveRef.current(text);
+      }),
+    []
+  );
+
+  // Перехід на інший день: незбережений текст одразу йде в базу свого дня
+  useEffect(
+    () => () => {
+      if (pendingRef.current === null) return;
+      if (timer.current) clearTimeout(timer.current);
+      const text = pendingRef.current;
+      pendingRef.current = null;
+      void onSaveRef.current(text);
+    },
+    []
+  );
+
+  function handleChange(next: string) {
+    setValue(next);
+    pendingRef.current = next;
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      pendingRef.current = null;
+      onSaveRef.current(next);
+      setSavedAt(Date.now());
+    }, 600);
+  }
+
+  return (
+    <>
       <div className="flex-1 p-5">
         <textarea
           value={value}
@@ -199,6 +230,6 @@ export function NotesPanel({
           {savedAt ? "Автозбережено" : "Автозбереження"}
         </span>
       </footer>
-    </section>
+    </>
   );
 }
