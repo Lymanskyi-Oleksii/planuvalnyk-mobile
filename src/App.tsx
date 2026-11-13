@@ -23,6 +23,7 @@ import { startOfWeekISO, weekDates } from "./lib/week";
 import { useHorizontalSwipe } from "./lib/useSwipe";
 import {
   ackDone,
+  clearRemindersOnSignOut,
   pendingDone,
   rescheduleReminders,
   syncNativeAuth,
@@ -31,7 +32,7 @@ import {
 import { onAppResume } from "./lib/appResume";
 import { initBackButton, setRootBackHandler } from "./lib/backButton";
 import {
-  clearOfflineCache,
+  clearOfflineData,
   flushOfflineQueue,
   getSeriesTasksFrom,
   getTasksOnDates,
@@ -431,8 +432,18 @@ function PlannerApp() {
   }
 
   async function handleLogout() {
-    await supabase.auth.signOut();
-    clearOfflineCache();
+    // Зміни, зроблені без мережі, надсилаємо, поки ще є сесія
+    await flushOfflineQueue().catch(() => 0);
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      // Наприклад, без мережі: сесія лишається, тож і нагадування не чіпаємо
+      toast.error("Не вдалося вийти з акаунта", { message: errorText(error) });
+      return;
+    }
+    // Інакше нагадування з назвами задач приходили б і після виходу, а черги
+    // пішли б у базу з токеном наступного користувача
+    await clearRemindersOnSignOut();
+    clearOfflineData();
   }
 
   // На телефоні показуємо лише активну вкладку, на планшеті/десктопі — все одразу.

@@ -219,6 +219,28 @@ async function cancelAndroid(): Promise<void> {
 }
 
 /**
+ * Вихід з акаунта: прибрати всі заплановані нагадування, чергу «Виконано»
+ * й дані входу на телефоні. Після перезавантаження телефона план теж не повернеться.
+ */
+export function clearRemindersOnSignOut(): Promise<void> {
+  // Через чергу: перепланування, що вже йде, не поставить план назад після очищення
+  return enqueue(async () => {
+    try {
+      if (isAndroid()) {
+        await cancelAll().catch(() => {});
+        await invoke("plugin:reminders|sign_out");
+      } else if (await isMobile()) {
+        await cancelAll();
+      }
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("Не вдалося прибрати нагадування після виходу:", err);
+    }
+    publish("idle", []);
+  });
+}
+
+/**
  * Задачі, позначені кнопкою «Виконано» в сповіщенні (Android).
  * Черга на телефоні не очищається: після запису в базу викликати ackDone.
  */

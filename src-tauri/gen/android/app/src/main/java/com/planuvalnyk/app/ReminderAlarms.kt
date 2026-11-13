@@ -215,6 +215,13 @@ object ReminderAlarms {
     Log.d(TAG, "ackDone: ${taskIds.size} підтверджено, у черзі лишилось ${queue.size}")
   }
 
+  /** Вихід з акаунта: черга належала попередньому користувачеві. */
+  @Synchronized
+  fun clearPendingDone(ctx: Context) {
+    ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(KEY_PENDING_DONE).commit()
+    Log.d(TAG, "clearPendingDone")
+  }
+
   private fun readQueue(raw: String?): MutableList<String> {
     if (raw == null) return mutableListOf()
     return try {

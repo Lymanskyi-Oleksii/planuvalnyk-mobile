@@ -52,11 +52,11 @@ function writeCache(key: string, data: unknown) {
   }
 }
 
-// Видалити збережені дні всіх користувачів (під час виходу з акаунта)
-export function clearOfflineCache() {
+// Видалити збережені дні й чергу змін усіх користувачів (під час виходу з акаунта)
+export function clearOfflineData() {
   try {
     Object.keys(localStorage)
-      .filter((k) => k.startsWith(CACHE_PREFIX))
+      .filter((k) => k.startsWith(CACHE_PREFIX) || k.startsWith(QUEUE_PREFIX))
       .forEach((k) => localStorage.removeItem(k));
   } catch {
     // нічого
