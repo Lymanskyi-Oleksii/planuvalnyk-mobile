@@ -22,6 +22,7 @@ export function NotesPanel({
   onDeleteMultiDayNote,
 }: NotesPanelProps) {
   const [addingSpan, setAddingSpan] = useState(false);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [spanTitle, setSpanTitle] = useState("");
   const [spanContent, setSpanContent] = useState("");
   const [spanStart, setSpanStart] = useState(date);
@@ -77,7 +78,7 @@ export function NotesPanel({
       {multiDayNotes.length > 0 && (
         <div className="space-y-2 border-b border-line bg-accent-soft/30 px-5 py-3">
           {multiDayNotes.map((n) => (
-            <div key={n.id} className="group flex items-start justify-between gap-2 rounded-lg bg-panel px-3 py-2 shadow-sm">
+            <div key={n.id} className="flex items-start justify-between gap-2 rounded-lg bg-panel px-3 py-2 shadow-sm">
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-semibold text-ink">{n.title}</span>
@@ -88,13 +89,22 @@ export function NotesPanel({
                 {n.content && <p className="mt-0.5 text-xs text-muted">{n.content}</p>}
               </div>
               <button
-                onClick={() => onDeleteMultiDayNote(n.id)}
-                className="hidden text-muted hover:text-ink group-hover:block"
+                onClick={() => (confirmingId === n.id ? onDeleteMultiDayNote(n.id) : setConfirmingId(n.id))}
+                onBlur={() => setConfirmingId((id) => (id === n.id ? null : id))}
+                className={
+                  confirmingId === n.id
+                    ? "shrink-0 rounded-lg bg-danger-soft px-2 py-1 text-xs font-medium text-danger"
+                    : "shrink-0 p-1.5 text-muted"
+                }
                 aria-label="Видалити нотатку"
               >
-                <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none">
-                  <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                </svg>
+                {confirmingId === n.id ? (
+                  "Так?"
+                ) : (
+                  <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none">
+                    <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                  </svg>
+                )}
               </button>
             </div>
           ))}

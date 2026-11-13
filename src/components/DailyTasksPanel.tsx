@@ -309,7 +309,7 @@ export function DailyTasksPanel({
             onClick={() => (reordering ? exitReordering() : setReordering(true))}
             disabled={activeTasks.length < 2}
             className={`flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium disabled:opacity-40 ${
-              reordering ? "border-accent bg-accent-soft text-accent" : "border-line text-ink hover:bg-canvas"
+              reordering ? "border-accent bg-accent-soft text-accent" : "border-line text-ink"
             }`}
           >
             <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none">
@@ -321,7 +321,7 @@ export function DailyTasksPanel({
           {!reordering && (
             <button
               onClick={() => setAdding(true)}
-              className="flex items-center gap-1 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink hover:bg-canvas"
+              className="flex items-center gap-1 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink"
             >
               <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none">
                 <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
@@ -359,7 +359,7 @@ export function DailyTasksPanel({
           <div className="flex justify-end gap-2 pt-1">
             <button
               onClick={() => setAddingSpan(false)}
-              className="rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-ink hover:bg-canvas"
+              className="rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-ink"
             >
               Скасувати
             </button>
@@ -396,7 +396,7 @@ export function DailyTasksPanel({
             }
             const confirming = confirmingDeleteId === task.id;
             return (
-              <li key={task.id} className="group flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-canvas">
+              <li key={task.id} className="flex items-center gap-3 rounded-lg px-2 py-2">
                 <Checkbox checked={task.done} onChange={(v) => onToggleMultiDay(task.id, v)} />
                 <span
                   onDoubleClick={() => {
@@ -416,7 +416,7 @@ export function DailyTasksPanel({
                         setEditingSpanId(task.id);
                         setSpanEditDraft(task.title);
                       }}
-                      className={`text-muted hover:text-ink ${confirming ? "hidden" : "hidden group-hover:block"}`}
+                      className={`p-1.5 text-muted ${confirming ? "hidden" : ""}`}
                       aria-label="Редагувати задачу"
                     >
                       <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none">
@@ -429,7 +429,7 @@ export function DailyTasksPanel({
                       className={
                         confirming
                           ? "rounded-lg bg-danger-soft px-2 py-1 text-xs font-medium text-danger"
-                          : "hidden text-muted hover:text-ink group-hover:block"
+                          : "p-1.5 text-muted"
                       }
                       aria-label="Видалити задачу"
                     >
@@ -507,7 +507,7 @@ export function DailyTasksPanel({
                 if (el) itemRefs.current.set(task.id, el);
                 else itemRefs.current.delete(task.id);
               }}
-              className="group flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-canvas"
+              className="flex items-center gap-3 rounded-lg px-2 py-2"
             >
               <Checkbox checked={task.done} onChange={(v) => handleToggle(task.id, v)} />
               <span
@@ -520,7 +520,7 @@ export function DailyTasksPanel({
                 <>
                   <button
                     onClick={() => startEdit(task)}
-                    className="hidden text-muted hover:text-ink group-hover:block"
+                    className={`p-1.5 text-muted ${confirmingDeleteId === task.id ? "hidden" : ""}`}
                     aria-label="Редагувати задачу"
                   >
                     <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none">
@@ -528,13 +528,25 @@ export function DailyTasksPanel({
                     </svg>
                   </button>
                   <button
-                    onClick={() => onDelete(task.id)}
-                    className="hidden text-muted hover:text-ink group-hover:block"
+                    onClick={() => {
+                      if (confirmingDeleteId === task.id) onDelete(task.id);
+                      else setConfirmingDeleteId(task.id);
+                    }}
+                    onBlur={() => setConfirmingDeleteId((id) => (id === task.id ? null : id))}
+                    className={
+                      confirmingDeleteId === task.id
+                        ? "rounded-lg bg-danger-soft px-2 py-1 text-xs font-medium text-danger"
+                        : "p-1.5 text-muted"
+                    }
                     aria-label="Видалити задачу"
                   >
-                    <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none">
-                      <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                    </svg>
+                    {confirmingDeleteId === task.id ? (
+                      "Так?"
+                    ) : (
+                      <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none">
+                        <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                      </svg>
+                    )}
                   </button>
                 </>
               )}
@@ -563,7 +575,7 @@ export function DailyTasksPanel({
               // Не забирати фокус у поля, щоб onBlur не зберіг текст як задачу дня
               onMouseDown={(e) => e.preventDefault()}
               onClick={openSpanForm}
-              className="shrink-0 rounded-lg border border-line px-2 py-1 text-xs font-medium text-ink hover:bg-canvas"
+              className="shrink-0 rounded-lg border border-line px-2 py-1 text-xs font-medium text-ink"
             >
               На кілька днів
             </button>
