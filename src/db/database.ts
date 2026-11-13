@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabaseClient";
 import { getCurrentUserId, requireUserId } from "@/lib/session";
+import { forgetTaskReminders } from "@/lib/reminders";
 import type {
   Category,
   DailyTask,
@@ -592,6 +593,9 @@ export async function deleteScheduledTaskSeries(seriesId: string, fromDate: stri
 
 export async function toggleScheduledTask(id: string, done: boolean): Promise<void> {
   await writeOrQueue({ kind: "scheduledDone", id, done });
+  // Без мережі перепланування не вдасться, тож нагадування виконаної задачі
+  // прибираємо з телефона одразу. Зняту галочку поверне наступне перепланування.
+  if (done) void forgetTaskReminders(id);
 }
 
 export async function updateScheduledTask(

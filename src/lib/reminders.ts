@@ -246,6 +246,24 @@ export function clearRemindersOnSignOut(): Promise<void> {
 }
 
 /**
+ * Задачу позначили виконаною в застосунку: прибрати її нагадування з телефона
+ * без мережі й без нового плану (як buildPlan пропускає виконані задачі).
+ */
+export function forgetTaskReminders(taskId: string): Promise<void> {
+  return enqueue(async () => {
+    try {
+      if (isAndroid()) await invoke("plugin:reminders|cancel_task", { taskId });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("Не вдалося прибрати нагадування задачі:", err);
+    }
+    if (status.plan.some((p) => p.taskId === taskId)) {
+      publish(status.state, status.plan.filter((p) => p.taskId !== taskId));
+    }
+  });
+}
+
+/**
  * Задачі, позначені кнопкою «Виконано» в сповіщенні (Android).
  * Черга на телефоні не очищається: після запису в базу викликати ackDone.
  */

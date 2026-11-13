@@ -215,6 +215,16 @@ object ReminderAlarms {
     Log.d(TAG, "markDone: task=$taskId, знято будильників ${task.size}, у черзі ${queue.size}")
   }
 
+  /** Задачу позначили виконаною в застосунку: прибрати її нагадування, разом із відкладеними. */
+  @Synchronized
+  fun cancelTask(ctx: Context, taskId: String) {
+    val (task, rest) = load(ctx).partition { it.taskId == taskId }
+    if (task.isEmpty()) return
+    cancel(ctx, task)
+    save(ctx, rest)
+    Log.d(TAG, "cancelTask: знято будильників ${task.size}")
+  }
+
   /** Черга задач, позначених кнопкою «Виконано». Не очищається: див. ackDone. */
   fun pendingDone(ctx: Context): List<String> =
     readQueue(ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_PENDING_DONE, null))
