@@ -4,6 +4,7 @@ import { useCalendarZoom } from "@/hooks/useCalendarZoom";
 import { useRangeTasks } from "@/hooks/useRangeTasks";
 import { blockRect, dayHeight, initialScrollTop, minutesToTop, overlapLanes, timeToMinutes, topToMinutes } from "@/lib/calendarLayout";
 import { rangeDates } from "@/lib/calendarRange";
+import { onAppResume } from "@/lib/appResume";
 import { isToday } from "@/lib/date";
 import { CATEGORY_COLORS } from "@/lib/reminderPlan";
 import type { CalendarRange } from "@/lib/settings";
@@ -211,16 +212,12 @@ export function CalendarView({
   useEffect(() => {
     const update = () => setNowMin(currentMinutes());
     const timer = setInterval(update, 60_000);
-    const onVisible = () => {
-      if (document.visibilityState === "visible") update();
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    window.addEventListener("tauri://resumed", update);
+    // visibilitychange + tauri://resumed (на Android друга — через вікно Tauri)
+    const offResume = onAppResume(update);
     update();
     return () => {
       clearInterval(timer);
-      document.removeEventListener("visibilitychange", onVisible);
-      window.removeEventListener("tauri://resumed", update);
+      offResume();
     };
   }, []);
 
