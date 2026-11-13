@@ -213,9 +213,15 @@ async function sendOp(op: OfflineOp): Promise<void> {
   if (error) throw error;
 }
 
+// Відправка черги, яка йде зараз. Одночасно — лише одна.
+let flushing: Promise<number> | null = null;
+
 // Записати в базу; без мережі — поставити в чергу
 async function writeOrQueue(op: OfflineOp): Promise<void> {
   patchCache(op);
+  // Свіжа зміна йде в базу після черги: інакше старіша зміна з черги,
+  // надіслана слідом, перезапише її (нотатка «abcd» → «abc»)
+  if (flushing) await flushing.catch(() => 0);
   try {
     await sendOp(op);
     dropQueuedTarget(op); // старіша зміна з черги вже не актуальна
@@ -227,11 +233,27 @@ async function writeOrQueue(op: OfflineOp): Promise<void> {
 }
 
 // Надіслати чергу по порядку. Повертає, скільки змін записано.
+// Якщо відправка вже йде, нова не починається — повертається та сама.
+export function flushOfflineQueue(): Promise<number> {
+  if (!flushing) {
+    flushing = sendQueue().finally(() => {
+      flushing = null;
+    });
+  }
+  return flushing;
+}
+
 // Без мережі зупиняється й лишає решту; інші помилки (напр. задачу вже видалено) пропускає.
-export async function flushOfflineQueue(): Promise<number> {
+async function sendQueue(): Promise<number> {
   if (!getCurrentUserId()) return 0;
   let sent = 0;
-  for (const op of readQueue()) {
+  const tried = new Set<string>();
+  for (;;) {
+    // Чергу перечитуємо перед кожною відправкою: поки йшла попередня, зміну
+    // могли замінити новішою — тоді стара вже не надсилається
+    const op = readQueue().find((o) => !tried.has(JSON.stringify(o)));
+    if (!op) break;
+    tried.add(JSON.stringify(op));
     try {
       await sendOp(op);
       sent++;

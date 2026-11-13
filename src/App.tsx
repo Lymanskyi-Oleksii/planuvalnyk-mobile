@@ -183,6 +183,10 @@ function PlannerApp() {
     let running: Promise<void> | null = null;
 
     const applyPendingDone = async () => {
+      // Спершу офлайн-черга з застосунку (якщо вже йде — чекаємо ту саму),
+      // щоб її галочки не перезаписали «Виконано» зі сповіщення
+      await flushOfflineQueue().catch(() => 0);
+
       // Сесія: getSession оновлює прострочений токен до запису в базу
       const { data } = await supabase.auth.getSession();
       if (!data.session) return;
