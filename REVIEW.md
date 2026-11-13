@@ -149,7 +149,7 @@
 
 ### Безпека
 
-- [ ] **20. Токени в незахищеному сховищі, автокопія не вимкнена.** Перевірено.
+- [x] **20. Токени в незахищеному сховищі, автокопія не вимкнена.** Перевірено.
   - Access token лежить відкритим текстом у SharedPreferences `reminders_auth`, а refresh token — у localStorage WebView.
   - `android:allowBackup` не вимкнено, тож ці файли потрапляють у хмарну копію.
   - Як виправити: `allowBackup="false"` або `dataExtractionRules`.
