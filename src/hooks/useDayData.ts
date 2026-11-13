@@ -6,7 +6,8 @@ export function useDayData(date: string) {
   const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([]);
   const [dailyTasks, setDailyTasks] = useState<DailyTask[]>([]);
   const [multiDayTasks, setMultiDayTasks] = useState<MultiDayTask[]>([]);
-  const [note, setNote] = useState<DayNote>({ date, content: "" });
+  // date "" — нотатку ще не завантажено; поле на екрані чекає її
+  const [note, setNote] = useState<DayNote>({ date: "", content: "" });
   const [multiDayNotes, setMultiDayNotes] = useState<MultiDayNote[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -178,7 +179,9 @@ export function useDayData(date: string) {
 
   const saveNote = useCallback(
     async (content: string) => {
-      setNote({ date, content });
+      // Таймер автозбереження міг спрацювати вже після переходу на інший день:
+      // текст іде в базу свого дня, а на екрані лишається нотатка нового.
+      setNote((prev) => (prev.date === date ? { date, content } : prev));
       await db.saveNote(date, content);
     },
     [date]

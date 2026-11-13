@@ -5,7 +5,7 @@ import type { MultiDayNote } from "@/types";
 
 interface NotesPanelProps {
   date: string;
-  content: string;
+  content: string | null; // null — нотатку цього дня ще не завантажено
   onSave: (content: string) => void | Promise<void>;
   multiDayNotes: MultiDayNote[];
   onAddMultiDayNote: (input: { title: string; content: string; startDate: string; endDate: string }) => void;
@@ -20,7 +20,7 @@ export function NotesPanel({
   onAddMultiDayNote,
   onDeleteMultiDayNote,
 }: NotesPanelProps) {
-  const [value, setValue] = useState(content);
+  const [value, setValue] = useState(content ?? "");
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>();
 
@@ -30,7 +30,9 @@ export function NotesPanel({
   const [spanStart, setSpanStart] = useState(date);
   const [spanEnd, setSpanEnd] = useState(date);
 
-  useEffect(() => setValue(content), [content]);
+  useEffect(() => {
+    if (content !== null) setValue(content);
+  }, [content]);
 
   // «Назад» закриває форму нотатки на кілька днів
   useBackHandler(addingSpan, () => setAddingSpan(false));
@@ -176,6 +178,7 @@ export function NotesPanel({
       <div className="flex-1 p-5">
         <textarea
           value={value}
+          readOnly={content === null}
           onChange={(e) => handleChange(e.target.value)}
           placeholder="Запишіть сюди будь-що, що не є конкретною задачею..."
           className="h-40 w-full resize-none border-0 bg-transparent text-sm text-ink placeholder:text-muted focus:outline-none"
