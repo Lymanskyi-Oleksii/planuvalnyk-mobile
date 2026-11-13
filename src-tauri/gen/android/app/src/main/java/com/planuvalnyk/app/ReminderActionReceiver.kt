@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import androidx.core.app.NotificationManagerCompat
+import org.json.JSONObject
 
 // Кнопки сповіщення «Виконано» і «Відкласти на 10 хв». Застосунок не відкривається.
 class ReminderActionReceiver : BroadcastReceiver() {
@@ -16,7 +17,7 @@ class ReminderActionReceiver : BroadcastReceiver() {
     NotificationManagerCompat.from(context).cancel(id)
 
     when (intent.action) {
-      ACTION_SNOOZE -> ReminderAlarms.snooze(context, id, SNOOZE_MS)
+      ACTION_SNOOZE -> ReminderAlarms.snooze(context, id, SNOOZE_MS, reminderFrom(intent))
       ACTION_DONE -> {
         val taskId = intent.getStringExtra(EXTRA_TASK_ID)
         if (taskId.isNullOrBlank()) return
@@ -42,7 +43,15 @@ class ReminderActionReceiver : BroadcastReceiver() {
     const val ACTION_DONE = "com.planuvalnyk.app.REMINDER_DONE"
     const val ACTION_SNOOZE = "com.planuvalnyk.app.REMINDER_SNOOZE"
     private const val EXTRA_TASK_ID = "taskId"
+    private const val EXTRA_REMINDER = "reminder" // усе нагадування в JSON — для «Відкласти»
     private const val SNOOZE_MS = 10 * 60 * 1000L
+
+    private fun reminderFrom(intent: Intent): Reminder? =
+      try {
+        intent.getStringExtra(EXTRA_REMINDER)?.let { Reminder.fromJson(JSONObject(it)) }
+      } catch (e: Exception) {
+        null
+      }
 
     // Унікальність PendingIntent: requestCode = id сповіщення, а різні кнопки
     // розрізняються action, тож інтенти не перезаписують один одного.
@@ -51,6 +60,7 @@ class ReminderActionReceiver : BroadcastReceiver() {
         .setAction(action)
         .putExtra(ReminderAlarms.EXTRA_ID, r.id)
         .putExtra(EXTRA_TASK_ID, r.taskId)
+      if (action == ACTION_SNOOZE) intent.putExtra(EXTRA_REMINDER, r.toJson().toString())
       return PendingIntent.getBroadcast(
         ctx,
         r.id,

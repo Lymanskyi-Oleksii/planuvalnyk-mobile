@@ -145,6 +145,7 @@ object ReminderAlarms {
    * Новий план із JS замінює попередній. Відкладені нагадування, яких у новому
    * плані немає (їхній початковий час уже минув), лишаються.
    */
+  @Synchronized
   fun replacePlan(ctx: Context, plan: List<Reminder>) {
     val now = System.currentTimeMillis()
     val old = load(ctx)
@@ -157,6 +158,7 @@ object ReminderAlarms {
   }
 
   /** Скасовує будильники збереженого плану й очищає його. */
+  @Synchronized
   fun cancelAll(ctx: Context) {
     val old = load(ctx)
     cancel(ctx, old)
@@ -164,12 +166,20 @@ object ReminderAlarms {
     Log.d(TAG, "cancelAll: скасовано ${old.size}")
   }
 
-  /** «Відкласти»: те саме нагадування ще раз через `delayMs`. */
-  fun snooze(ctx: Context, id: Int, delayMs: Long) {
+  /**
+   * «Відкласти»: те саме нагадування ще раз через `delayMs`.
+   * fallback — копія з кнопки сповіщення: план могли перепланувати після показу,
+   * і тоді минулого нагадування в ньому вже немає.
+   */
+  @Synchronized
+  fun snooze(ctx: Context, id: Int, delayMs: Long, fallback: Reminder?) {
     val list = load(ctx)
-    val r = list.firstOrNull { it.id == id } ?: return
+    val r = list.firstOrNull { it.id == id } ?: fallback ?: run {
+      Log.d(TAG, "snooze: id=$id немає ні в плані, ні в кнопці")
+      return
+    }
     val moved = r.copy(whenMs = System.currentTimeMillis() + delayMs, snoozed = true)
-    saveNow(ctx, list.map { if (it.id == id) moved else it })
+    saveNow(ctx, list.filter { it.id != id } + moved)
     set(ctx, id, moved.whenMs, alarmClock = true)
     Log.d(TAG, "snooze: id=$id до ${java.util.Date(moved.whenMs)}")
   }
