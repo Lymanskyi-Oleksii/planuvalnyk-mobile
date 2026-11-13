@@ -17,6 +17,7 @@ import { addDays, toISODate } from "./date";
 import { loadSettings, type AlertMode } from "./settings";
 import {
   buildPlan,
+  remindableTaskIds,
   toCategory,
   type PlanDailyTask,
   type PlanMultiDayTask,
@@ -206,11 +207,15 @@ function toNative(p: PlannedReminder, mode: AlertMode, when: Date = p.when): Nat
   };
 }
 
-/** Android: увесь план одним викликом; він повністю замінює попередній. */
-async function scheduleAndroid(reminders: NativeReminder[]): Promise<void> {
+/**
+ * Android: увесь план одним викликом; він повністю замінює попередній.
+ * Відкладені нагадування телефон лишає, лише якщо їхня задача є в openTaskIds
+ * або датована раніше за fromDate (такі задачі план не читав).
+ */
+async function scheduleAndroid(reminders: NativeReminder[], openTaskIds: string[], fromDate: string): Promise<void> {
   // Прибираємо нагадування, які попередня версія ставила через плагін notification
   await cancelAll().catch(() => {});
-  await invoke("plugin:reminders|schedule", { reminders });
+  await invoke("plugin:reminders|schedule", { reminders, openTaskIds, fromDate });
 }
 
 async function cancelAndroid(): Promise<void> {
@@ -453,7 +458,11 @@ async function doReschedule(): Promise<void> {
     await ensureChannels();
 
     if (isAndroid()) {
-      await scheduleAndroid(plan.map((p) => toNative(p, settings.alertMode)));
+      await scheduleAndroid(
+        plan.map((p) => toNative(p, settings.alertMode)),
+        remindableTaskIds(tasks, settings),
+        today
+      );
     } else {
       // Спершу прибираємо старі, потім ставимо актуальні: так видалені
       // або перенесені задачі не залишають «привидів».

@@ -19,9 +19,13 @@ class RemindersPlugin(private val activity: Activity) : Plugin(activity) {
   @Command
   fun schedule(invoke: Invoke) {
     try {
-      val list = ReminderAlarms.parse(invoke.getArgs().getJSONArray("reminders"))
+      val args = invoke.getArgs()
+      val list = ReminderAlarms.parse(args.getJSONArray("reminders"))
+      // Аргументи: { reminders, openTaskIds?, fromDate? } — див. ReminderAlarms.replacePlan
+      val open = args.optJSONArray("openTaskIds")?.let { arr -> (0 until arr.length()).map { arr.getString(it) }.toSet() }
+      val fromDate = args.optString("fromDate")
       // Новий план замінює попередній (крім відкладених кнопкою нагадувань)
-      ReminderAlarms.replacePlan(activity.applicationContext, list)
+      ReminderAlarms.replacePlan(activity.applicationContext, list, open, fromDate)
       invoke.resolve()
     } catch (e: Exception) {
       invoke.reject("Не вдалося запланувати нагадування: ${e.message}")

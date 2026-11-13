@@ -118,6 +118,15 @@ export function wantsReminder(task: Pick<PlanTask, "remind" | "category">, s: Re
   return task.remind ?? s.categories.includes(task.category);
 }
 
+/**
+ * Задачі, про які ще треба нагадувати: невиконані й з увімкненим нагадуванням.
+ * Відкладене кнопкою «Відкласти» нагадування задачі не з цього списку більше не приходить.
+ */
+export function remindableTaskIds(tasks: PlanTask[], s: ReminderSettings): string[] {
+  if (!s.enabled) return [];
+  return tasks.filter((t) => !t.done && wantsReminder(t, s)).map((t) => t.id);
+}
+
 export function buildPlan(
   tasks: PlanTask[],
   s: ReminderSettings,

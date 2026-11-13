@@ -143,13 +143,19 @@ object ReminderAlarms {
 
   /**
    * Новий план із JS замінює попередній. Відкладені нагадування, яких у новому
-   * плані немає (їхній початковий час уже минув), лишаються.
+   * плані немає (їхній початковий час уже минув), лишаються, якщо їхня задача
+   * ще чекає нагадувань: є в openTaskIds (невиконані з увімкненим нагадуванням,
+   * дні від fromDate) або датована раніше за fromDate. Задача виконана чи
+   * видалена — відкладене більше не прийде. openTaskIds == null — без перевірки.
    */
   @Synchronized
-  fun replacePlan(ctx: Context, plan: List<Reminder>) {
+  fun replacePlan(ctx: Context, plan: List<Reminder>, openTaskIds: Set<String>?, fromDate: String) {
     val now = System.currentTimeMillis()
     val old = load(ctx)
-    val keep = old.filter { r -> r.snoozed && r.whenMs > now && plan.none { it.id == r.id } }
+    val stillWanted = { r: Reminder ->
+      openTaskIds == null || r.taskId.isBlank() || r.taskId in openTaskIds || r.date < fromDate
+    }
+    val keep = old.filter { r -> r.snoozed && r.whenMs > now && plan.none { it.id == r.id } && stillWanted(r) }
     cancel(ctx, old)
     val merged = plan + keep
     save(ctx, merged)
