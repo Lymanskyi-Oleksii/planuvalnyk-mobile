@@ -173,21 +173,24 @@ export function useDayData(date: string) {
         remind?: boolean | null;
         remindBeforeMin?: number | null;
       },
-      // Для «цієї й наступних»: серія, з якої дати, які копії не чіпати (накладки),
-      // id підзадач задачі до змін — щоб зіставити підзадачі копій за позицією
-      series?: { seriesId: string; fromDate: string; skipIds: string[]; baseSubtaskIds: string[] }
+      // Підзадачі задачі на момент відкриття форми: видаляються лише ті з них,
+      // які прибрали у формі
+      baseSubtasks: { id: string; title: string }[],
+      // Для «цієї й наступних»: серія, з якої дати, які копії не чіпати (накладки)
+      series?: { seriesId: string; fromDate: string; skipIds: string[] }
     ) => {
       const { subtasks = [], ...rest } = input;
+      const baseSubtaskIds = baseSubtasks.map((s) => s.id);
       if (series) {
         await db.updateScheduledTaskSeries(
           series.seriesId,
           series.fromDate,
           { ...rest, subtasks },
           series.skipIds,
-          series.baseSubtaskIds
+          baseSubtaskIds
         );
       } else {
-        await db.updateScheduledTask(id, { ...rest, subtasks });
+        await db.updateScheduledTask(id, { ...rest, subtasks }, baseSubtaskIds);
       }
       await reload();
     },

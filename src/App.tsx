@@ -335,14 +335,10 @@ function PlannerApp() {
       if (editingTask) {
         const series =
           scope === "following" && editingTask.seriesId
-            ? {
-                seriesId: editingTask.seriesId,
-                fromDate: editingTask.date,
-                skipIds,
-                baseSubtaskIds: editingTask.subtasks.map((s) => s.id),
-              }
+            ? { seriesId: editingTask.seriesId, fromDate: editingTask.date, skipIds }
             : undefined;
-        await updateScheduledTask(editingTask.id, task, series);
+        // editingTask — знімок, з яким відкрили форму
+        await updateScheduledTask(editingTask.id, task, editingTask.subtasks, series);
       } else {
         await addScheduledTask({ ...task, repeatDates, date: modalDay?.date });
       }

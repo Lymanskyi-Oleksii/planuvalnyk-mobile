@@ -402,29 +402,37 @@ async function updateTaskFields(ids: string[], input: TaskFieldsInput): Promise<
 }
 
 /**
- * Приводить підзадачі задачі до списку з форми, не чіпаючи done:
- * наявні (id з existingIds) — нова назва й sort_order за позицією в списку,
- * без id або з чужим id — нові, наявні, яких у списку немає, — видаляються.
+ * Приводить підзадачі задачі до списку з форми, не чіпаючи done.
+ * knownIds — підзадачі, які форма бачила, коли її відкрили:
+ * з них ті, що є в списку, — нова назва й sort_order за позицією, решта видаляються.
+ * Без id або з чужим id — нові. otherIds — підзадачі, яких форма не бачила
+ * (додані на ПК після відкриття дня): лишаються як є, лише стають після списку з форми.
  */
-async function syncTaskSubtasks(taskId: string, existingIds: string[], drafts: SubtaskDraft[]): Promise<void> {
-  const own = new Set(existingIds);
-  const isOwn = (d: SubtaskDraft) => !!d.id && own.has(d.id);
+async function syncTaskSubtasks(
+  taskId: string,
+  knownIds: string[],
+  drafts: SubtaskDraft[],
+  otherIds: string[] = []
+): Promise<void> {
+  const known = new Set(knownIds);
+  const isKnown = (d: SubtaskDraft) => !!d.id && known.has(d.id);
 
-  const removed = existingIds.filter((id) => !drafts.some((d) => d.id === id));
+  const removed = knownIds.filter((id) => !drafts.some((d) => d.id === id));
   if (removed.length > 0) {
     const { error } = await supabase.from("subtasks").delete().in("id", removed);
     if (error) throw error;
   }
 
-  const updates = await Promise.all(
-    drafts.flatMap((d, i) =>
-      isOwn(d) ? [supabase.from("subtasks").update({ title: d.title, sort_order: i }).eq("id", d.id!)] : []
-    )
-  );
+  const updates = await Promise.all([
+    ...drafts.flatMap((d, i) =>
+      isKnown(d) ? [supabase.from("subtasks").update({ title: d.title, sort_order: i }).eq("id", d.id!)] : []
+    ),
+    ...otherIds.map((id, i) => supabase.from("subtasks").update({ sort_order: drafts.length + i }).eq("id", id)),
+  ]);
   const failed = updates.find((r) => r.error);
   if (failed?.error) throw failed.error;
 
-  const rows = drafts.flatMap((d, i) => (isOwn(d) ? [] : [{ task_id: taskId, title: d.title, sort_order: i }]));
+  const rows = drafts.flatMap((d, i) => (isKnown(d) ? [] : [{ task_id: taskId, title: d.title, sort_order: i }]));
   if (rows.length > 0) {
     const { error } = await supabase.from("subtasks").insert(rows);
     if (error) throw error;
@@ -604,19 +612,29 @@ export async function toggleScheduledTask(id: string, done: boolean): Promise<vo
   if (done) void forgetTaskReminders(id);
 }
 
+/**
+ * baseSubtaskIds — id підзадач задачі на момент відкриття форми. Видаляються лише ті
+ * з них, які прибрали у формі. Підзадачі, додані на ПК тим часом, лишаються з галочками.
+ */
 export async function updateScheduledTask(
   id: string,
-  input: TaskFieldsInput & { subtasks: SubtaskDraft[] }
+  input: TaskFieldsInput & { subtasks: SubtaskDraft[] },
+  baseSubtaskIds: string[]
 ): Promise<void> {
   const { subtasks, ...fields } = input;
   await updateTaskFields([id], fields);
-  // Поточні підзадачі — з бази, а не з форми: так прибрані точно видаляться
-  const { data, error } = await supabase.from("subtasks").select("id").eq("task_id", id);
+  const { data, error } = await supabase
+    .from("subtasks")
+    .select("id")
+    .eq("task_id", id)
+    .order("sort_order", { ascending: true });
   if (error) throw error;
+  const base = new Set(baseSubtaskIds);
   await syncTaskSubtasks(
     id,
-    (data ?? []).map((r) => r.id as string),
-    subtasks
+    baseSubtaskIds,
+    subtasks,
+    (data ?? []).map((r) => r.id as string).filter((sid) => !base.has(sid))
   );
 }
 
