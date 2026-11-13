@@ -94,6 +94,9 @@ function errorText(err: unknown): string {
   return typeof message === "string" && message ? message : "Перевірте з'єднання з інтернетом і спробуйте ще раз.";
 }
 
+// Помилка збереження з форми: текст лишається в полях, можна спробувати ще раз
+const SAVE_FAILED_MESSAGE = "Перевірте з'єднання з інтернетом і спробуйте ще раз. Введений текст лишився у формі.";
+
 function PlannerApp() {
   const [activeDate, setActiveDate] = useState(TODAY);
   const [activeTab, setActiveTab] = useState<MobileTab>("day");
@@ -324,7 +327,7 @@ function PlannerApp() {
     setModalOpen(true);
   }
 
-  async function handleSaveTask(values: TaskFormValues, scope: SeriesScope) {
+  async function handleSaveTask(values: TaskFormValues, scope: SeriesScope): Promise<boolean> {
     const { repeatDates, skipIds, ...task } = values;
     try {
       if (editingTask) {
@@ -342,8 +345,12 @@ function PlannerApp() {
         await addScheduledTask({ ...task, repeatDates, date: modalDay?.date });
       }
       bump();
+      return true;
     } catch (err) {
-      toast.error("Не вдалося зберегти задачу", { message: errorText(err) });
+      // eslint-disable-next-line no-console
+      console.error("Не вдалося зберегти задачу:", err);
+      toast.error("Не вдалося зберегти задачу", { message: SAVE_FAILED_MESSAGE });
+      return false;
     }
   }
 

@@ -24,7 +24,8 @@ export interface TaskFormValues {
 interface AddTaskModalProps {
   open: boolean;
   onClose: () => void;
-  onSave: (values: TaskFormValues, scope: SeriesScope) => void;
+  // true — збережено; false — не вдалося (картку-помилку вже показано)
+  onSave: (values: TaskFormValues, scope: SeriesScope) => Promise<boolean>;
   editingTask?: ScheduledTask | null;
   existingTasks: ScheduledTask[]; // задачі того ж дня, для перевірки накладок
   date: string; // день, на який створюємо задачу
@@ -99,6 +100,8 @@ export function AddTaskModal({
   // Наступні копії серії, яку редагуємо
   const [seriesNext, setSeriesNext] = useState<ScheduledTask[] | null>(null);
   const [checkError, setCheckError] = useState(false);
+  // Іде збереження: кнопки неактивні, форма чекає відповіді бази
+  const [saving, setSaving] = useState(false);
 
   const newRepeatDates =
     open && !editingTask && repeatOn ? repeatDatesFor(date, repeatUntil, repeatWeekdays) : [];
@@ -188,7 +191,7 @@ export function AddTaskModal({
   // Поки не перевірено накладки на інших днях, серію не зберігаємо
   const repeatPending = !editingTask && repeatOn && (repeatWeekdays.length === 0 || (repeatKey !== "" && otherTasks === null));
   const seriesPending = isSeries && (seriesNext === null || otherTasks === null);
-  const canSave = !!title.trim() && !invalidRange && !overlap && !repeatPending;
+  const canSave = !!title.trim() && !invalidRange && !overlap && !repeatPending && !saving;
 
   function toggleWeekday(day: number) {
     setRepeatWeekdays((days) => (days.includes(day) ? days.filter((d) => d !== day) : [...days, day]));
@@ -203,12 +206,15 @@ export function AddTaskModal({
     subtaskInputRef.current?.focus();
   }
 
-  function handleSubmit(scope: SeriesScope = "one") {
+  // Форма закривається лише після успішного збереження; при помилці лишається
+  // з усім текстом (картку-помилку показує onSave)
+  async function handleSubmit(scope: SeriesScope = "one") {
     if (!canSave) return;
     if (scope === "following" && seriesPending) return;
     // Текст, не доданий кнопкою «+», не губиться — стає останньою підзадачею
     const draft = subtaskDraft.trim();
-    onSave(
+    setSaving(true);
+    const saved = await onSave(
       {
         startTime,
         endTime,
@@ -225,8 +231,9 @@ export function AddTaskModal({
         skipIds: seriesSkipped.map((t) => t.id),
       },
       scope
-    );
-    onClose();
+    ).catch(() => false);
+    setSaving(false);
+    if (saved) onClose();
   }
 
   return (
