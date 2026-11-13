@@ -79,7 +79,7 @@ class ReminderReceiver : BroadcastReceiver() {
           R.id.reminder_btn_snooze,
           ReminderActionReceiver.pendingIntent(ctx, ReminderActionReceiver.ACTION_SNOOZE, r),
         )
-        // У підсумків дня й тестового сповіщення немає задачі — «Виконано» ховаємо
+        // У підсумків дня, перекусу й тестового сповіщення немає задачі — «Виконано» ховаємо
         if (r.taskId.isBlank()) {
           v.setViewVisibility(R.id.reminder_btn_done, View.GONE)
         } else {

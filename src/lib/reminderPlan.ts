@@ -48,7 +48,7 @@ export interface PlannedReminder {
   color: string; // колір акценту сповіщення
   silent: boolean; // без звуку: тихі години або режим «Без звуку»
   date: string; // день, якого стосується нагадування
-  taskId?: string; // задача, яку позначає кнопка «Виконано»; у підсумків дня немає
+  taskId?: string; // задача, яку позначає кнопка «Виконано»; у підсумків дня й перекусу немає
 }
 
 // Ті самі кольори, що й у бейджів категорій світлої теми (src/index.css → --c-*-fg)
@@ -187,7 +187,7 @@ export function buildPlan(
           details: snackDetails,
           color: CATEGORY_COLORS.food,
           date: t.date,
-          taskId: t.id,
+          // Без taskId: «Виконано» на перекусі позначило б виконаним саме тренування
         });
       }
       if (s.afterWorkoutPulse) {
